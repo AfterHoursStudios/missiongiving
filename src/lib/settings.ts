@@ -38,3 +38,9 @@ export async function setSetting(key: string, value: unknown, userId: string | n
     .from("organization_settings").upsert({ key, value, updated_by: userId, updated_at: new Date().toISOString() });
   if (error) throw new Error(error.message);
 }
+
+/** Raw key/value map for the admin settings form. Callers must have passed requirePermission("settings.manage"). */
+export async function getAllSettings(): Promise<Record<string, unknown>> {
+  const { data } = await createSupabaseAdminClient().from("organization_settings").select("key, value");
+  return Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
+}

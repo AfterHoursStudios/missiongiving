@@ -1,4 +1,14 @@
 import Link from "next/link";
+import { isSupabaseConfigured } from "@/lib/env";
+import { listPublicProjects, type PublicProject } from "@/lib/projects/public";
+import { ProjectCard } from "@/components/site/project-card";
+
+export const dynamic = "force-dynamic";
+
+async function featuredProjects(): Promise<PublicProject[]> {
+  if (!isSupabaseConfigured) return [];
+  try { return (await listPublicProjects()).filter((p) => p.featured && p.status !== "completed").slice(0, 3); } catch { return []; }
+}
 
 // Impact statistics are ADMIN-EDITABLE placeholders until approved values are entered (Phase 4 settings UI).
 const impact = [
@@ -14,7 +24,8 @@ const faqs = [
   ["Will I get a receipt?", "Yes. Receipts appear in your account once a payment is confirmed."],
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const featured = await featuredProjects();
   return (
     <>
       <section className="bg-paper-2">
@@ -38,6 +49,13 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {featured.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pt-[var(--space-section)]" aria-labelledby="featured">
+          <h2 id="featured" className="text-3xl font-semibold">Featured projects</h2>
+          <div className="mt-6 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">{featured.map((p) => <ProjectCard key={p.id} p={p} />)}</div>
+        </section>
+      )}
 
       <section className="mx-auto max-w-6xl px-4 py-[var(--space-section)]" aria-labelledby="impact">
         <h2 id="impact" className="text-3xl font-semibold">Our impact</h2>

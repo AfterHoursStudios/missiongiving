@@ -32,7 +32,7 @@ export default async function DonatePage({ searchParams }: { searchParams: Promi
   const [{ data: tiers }, { data: projects }, { data: profile }] = await Promise.all([
     supabase.from("donation_tiers").select("id, public_title, amount_cents, short_description, featured, allow_one_time, allow_monthly, allow_yearly, general_fund, project_id, display_order, active_from, active_until")
       .eq("status", "active").order("display_order"),
-    supabase.from("projects").select("id, title, allow_custom_amount").eq("status", "active").eq("is_public", true).order("title"),
+    supabase.from("projects").select("id, title, allow_custom_amount").in("status", ["active", "goal_reached"]).eq("is_public", true).order("title"),
     createSupabaseAdminClient().from("donor_profiles").select("first_name, last_name").eq("user_id", user.id).maybeSingle(),
   ]);
   const liveTiers = withinActiveWindow(tiers ?? []);

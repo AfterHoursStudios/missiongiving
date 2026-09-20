@@ -10,7 +10,13 @@ export const metadata: Metadata = { title: { default: "Admin", template: "%s | A
 const NAV: { href: string; label: string; perm: Permission }[] = [
   { href: "/admin", label: "Dashboard", perm: "reports.view" },
   { href: "/admin/donors", label: "Donors", perm: "donors.view" },
+  { href: "/admin/projects", label: "Projects", perm: "projects.manage" },
   { href: "/admin/tiers", label: "Donation tiers", perm: "tiers.manage" },
+  { href: "/admin/messages", label: "Messages", perm: "comms.send" },
+  { href: "/admin/privacy", label: "Privacy requests", perm: "donors.edit" },
+  { href: "/admin/staff", label: "Staff", perm: "staff.manage" },
+  { href: "/admin/settings", label: "Settings", perm: "settings.manage" },
+  { href: "/admin/audit", label: "Audit log", perm: "audit.view" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

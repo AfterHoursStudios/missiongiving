@@ -23,7 +23,7 @@ export function fillTemplate(text: string, vars: TemplateVars, mode: "html" | "t
 export function sanitizeEmailHtml(html: string) {
   return sanitizeHtml(html, {
     allowedTags: ["p", "br", "strong", "em", "b", "i", "u", "ul", "ol", "li", "h2", "h3", "a", "blockquote"],
-    allowedAttributes: { a: ["href", "title"] },
+    allowedAttributes: { a: ["href", "title", "rel", "target"] },
     allowedSchemes: ["https", "mailto"],
     transformTags: { a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer" }) },
   });
