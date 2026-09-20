@@ -1,0 +1,65 @@
+# Mission Giving
+
+Donation-management platform for Ultimate Mission. Next.js 16 (App Router), TypeScript strict, Tailwind 4, Supabase, Stripe, Resend.
+
+> **Status: Phases 1-2 built** (foundation; donation flow, Stripe webhooks, receipts, emails). Phases 3-7 are not built yet; see the roadmap.
+> **Not yet verified against live Stripe, Supabase or Resend accounts.** Logic is unit-tested with in-memory fakes; run the test-mode steps below before trusting it.
+
+## Local setup
+
+```bash
+npm install
+cp .env.example .env.local      # fill in values; never commit
+npm run dev
+```
+
+Without Supabase variables the public pages render and private routes are not gated (dev-only state). Configure Supabase to exercise auth.
+
+### Supabase
+1. Create a project. Copy URL, anon key and service-role key into `.env.local` (the service-role key is server-only).
+2. Apply migrations in order (SQL editor, or `supabase db push` with the CLI): `0001_schema.sql`, `0002_rls_and_rbac.sql`, `0003_donation_flow.sql`, then `supabase/seed.sql` (fake/placeholder data only).
+3. Auth > URL configuration: add `<APP_URL>/auth/callback` as a redirect URL. Enable email confirmation.
+4. Initial administrator (no hardcoded password): set `INITIAL_ADMIN_EMAIL`, run `npm run admin:bootstrap`. Supabase emails an invitation; the person sets their own password. It refuses to run if a Super Admin already exists.
+
+### Stripe (test mode)
+1. Put `STRIPE_SECRET_KEY` (`sk_test_...`) and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in `.env.local`.
+2. Dashboard > Settings > Payment methods: enable **Cards** and **ACH Direct Debit**.
+3. Local webhooks: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`, then copy the printed `whsec_...` into `STRIPE_WEBHOOK_SECRET`.
+   Production: add an endpoint at `<APP_URL>/api/webhooks/stripe` for `payment_intent.processing`, `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`, `charge.refunded`, `charge.dispute.created|updated|closed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`.
+4. Test payments use Stripe's public test values only: card `4242 4242 4242 4242` with any future expiry/CVC; declined card `4000 0000 0000 0002`. For ACH use Stripe's test bank flow (see Stripe's ACH testing docs for the success and failure test accounts).
+
+### Resend
+Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them emails are skipped (one log line, no recipient or content).
+
+## Scripts
+`npm run lint` · `npm run typecheck` · `npm test` (38 unit tests) · `npm run build` · `npm run test:e2e` (suite added in Phase 7)
+
+## Architecture
+- `src/proxy.ts` refreshes the Supabase session and redirects unauthenticated users away from `/dashboard` and `/admin`. It is **not** the security boundary: pages, actions and handlers call `requirePermission()` (`src/lib/auth/session.ts`), and Postgres RLS enforces access again.
+- `supabase/migrations/0001` is the full schema. Money is integer cents plus a currency code. Deletes on donations, recurring gifts and expenses are blocked by trigger; `audit_logs` is append-only by trigger.
+- `0002` seeds roles/permissions, adds `has_permission()` helpers and RLS on every table, and column-level grants so donors cannot change status or Stripe IDs. Donations, receipts and refunds have no write policies: only server code with the service role writes them.
+- Security headers and CSP are in `next.config.ts`; private paths send `X-Robots-Tag: noindex`.
+
+### How payments are reconciled
+- The browser never marks a gift successful. Checkout creates a `pending` donation, Stripe confirms, and `/api/webhooks/stripe` (signature-verified) sets the status.
+- The server decides the amount: a tier id resolves to the tier's stored amount; custom amounts are validated against settings (`resolveAmount`).
+- Each Stripe event is claimed in `webhook_events` (primary key = event id), so redeliveries are no-ops; failures return 500 so Stripe retries. Status only moves forward (a late `processing` cannot undo `succeeded`).
+- A repeated submit with the same idempotency key cannot create a second donation (unique key in the database and on the Stripe requests).
+- ACH: `processing` shows as pending with a non-final "Payment Pending" acknowledgment; the final receipt and confirmation email are issued only on `succeeded`. Delayed failures move it to `failed`.
+- Recurring gifts: each paid invoice creates one donation row; `customer.subscription.*` events keep status and next charge date in sync.
+- Tier-specific email messages override the general template body for success emails; the subject stays the template's.
+
+## Known limitations / to do before launch
+- Donating requires a signed-in account. The guest-donation setting exists, but guest checkout and claim-by-email are **not implemented**.
+- An ACH *subscription's* first payment shows as `pending` until `invoice.paid` (no intermediate `processing` state).
+- Billing address collection, Stripe Customer Portal, refunds UI and the admin reconciliation view are not built yet (Phases 3-5).
+- Public project pages don't exist yet, so the destination step only lists projects created directly in the database.
+- Rate limiting is in-memory per instance (`src/lib/rate-limit.ts`). Use a shared store or Vercel Firewall in production.
+- Registration uses a honeypot only; add Turnstile/hCaptcha.
+- CSP allows `'unsafe-inline'` scripts; move to nonces.
+- MFA and account lockout beyond rate limits are not implemented.
+- Legal text, EIN, legal name, impact statistics and tier descriptions are **placeholders pending Ultimate Mission approval / legal review**.
+- RLS policies and the Supabase repository have not been run against a live database; add integration tests in Phase 7.
+
+## Roadmap
+1 done · 2 done (Stripe, webhooks, receipts) · 3 Donor portal · 4 Admin portal · 5 Financial reports · 6 Communications · 7 Tests, a11y, security review, deploy docs.
