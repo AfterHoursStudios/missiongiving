@@ -20,7 +20,7 @@ export function ProjectCard({ p }: { p: PublicProject }) {
         : <div className="flex aspect-[4/3] items-center justify-center border-2 border-dashed border-ink-soft text-ink-soft">Project photo placeholder</div>}
       <h3 className="mt-4 text-2xl font-semibold"><Link href={`/projects/${p.slug}`} className="hover:underline">{p.title}</Link></h3>
       {p.location && <p className="text-sm text-ink-soft">{p.location}</p>}
-      {p.summary && <p className="mt-2">{p.summary}</p>}
+      {p.summary && <p className="mt-2 line-clamp-4">{p.summary}</p>}
       <div className="mt-4">
         {p.pct !== null && <ProgressBar pct={p.pct} label={`${p.title} progress`} />}
         <p className="mt-2 text-sm"><strong>{formatMoney(p.raised)}</strong> raised{p.goal_cents ? ` of ${formatMoney(p.goal_cents)} (${p.pct}%)` : ""}{p.donors > 0 ? ` · ${p.donors} donor${p.donors === 1 ? "" : "s"}` : ""}</p>

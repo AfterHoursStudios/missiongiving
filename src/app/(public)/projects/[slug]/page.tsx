@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPublicProject, recentRecognition } from "@/lib/projects/public";
-import { sanitizeStory } from "@/lib/admin/project-schema";
+import { formatRichText, sanitizeStory } from "@/lib/admin/project-schema";
 import { formatMoney } from "@/lib/money";
 import { publicEnv } from "@/lib/env";
 import { ProgressBar } from "@/components/site/project-card";
@@ -57,7 +57,7 @@ export default async function ProjectPage({ params }: Props) {
       </section>
 
       {/* Sanitized again at render time as defense in depth; content was also sanitized when saved. */}
-      {p.story_html && <div className="prose-story mt-10 space-y-4 text-lg [&_a]:underline [&_h2]:mt-6 [&_h2]:text-2xl [&_h2]:font-semibold [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6" dangerouslySetInnerHTML={{ __html: sanitizeStory(p.story_html) }} />}
+      {p.story_html && <div className="prose-story mt-10 space-y-4 text-lg [&_a]:underline [&_h2]:mt-6 [&_h2]:text-2xl [&_h2]:font-semibold [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6" dangerouslySetInnerHTML={{ __html: sanitizeStory(formatRichText(p.story_html)) }} />}
 
       {(p.gallery ?? []).length > 0 && (
         <section aria-labelledby="gallery" className="mt-10"><h2 id="gallery" className="text-2xl font-semibold">Gallery</h2>
@@ -72,7 +72,7 @@ export default async function ProjectPage({ params }: Props) {
         {updates.length === 0 ? <p className="mt-3 text-ink-soft">No updates yet.</p> : (
           <ol className="mt-4 space-y-8">{updates.map((u) => (
             <li key={u.id}><h3 className="text-xl font-semibold">{u.title}</h3><p className="text-sm text-ink-soft">{new Date(u.published_at!).toLocaleDateString("en-US")}</p>
-              <div className="mt-2 space-y-3" dangerouslySetInnerHTML={{ __html: sanitizeStory(u.body_html) }} /></li>
+              <div className="mt-2 space-y-3" dangerouslySetInnerHTML={{ __html: sanitizeStory(formatRichText(u.body_html)) }} /></li>
           ))}</ol>
         )}
       </section>

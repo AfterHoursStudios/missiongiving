@@ -1,6 +1,7 @@
 import { SimpleForm, CheckInput, TextInput } from "@/components/donor/forms";
 import { saveProject } from "@/lib/admin/project-actions";
-import { PROJECT_STATUSES } from "@/lib/admin/project-schema";
+import { PROJECT_STATUSES, SUMMARY_MAX } from "@/lib/admin/project-schema";
+import { CountedTextarea } from "./counted-textarea";
 
 export interface ProjectValues {
   id?: string; title?: string; slug?: string; summary?: string | null; story_html?: string | null; featured_image_url?: string | null;
@@ -20,11 +21,10 @@ export function ProjectForm({ project }: { project?: ProjectValues }) {
       <TextInput label="Title" name="title" defaultValue={p.title} required />
       <TextInput label="URL slug" name="slug" defaultValue={p.slug} hint="Leave blank to generate from the title. Appears as /projects/your-slug." />
       <TextInput label="Location" name="location" defaultValue={p.location} />
-      <div><label htmlFor="summary" className="block font-semibold">Short summary</label>
-        <textarea id="summary" name="summary" rows={2} maxLength={300} defaultValue={p.summary ?? ""} className={area} /></div>
+      <CountedTextarea id="summary" name="summary" label="Short summary" max={SUMMARY_MAX} rows={4} defaultValue={p.summary ?? ""} hint="Shown on project cards (long text is shortened there) and in link previews." />
       <div><label htmlFor="story" className="block font-semibold">Full story</label>
         <textarea id="story" name="story_html" rows={10} defaultValue={p.story_html ?? ""} className={area + " font-mono text-sm"} />
-        <p className="text-sm text-ink-soft">Basic HTML only: p, br, strong, em, h2, h3, ul, ol, li, blockquote, and https links. Anything else is removed on save.</p></div>
+        <p className="text-sm text-ink-soft">Write it as you want it to look: press Enter twice for a new paragraph, once for a line break, and start lines with &quot;- &quot; for a bulleted list. You can also use basic HTML (p, br, strong, em, h2, h3, ul, ol, li, blockquote, and https links); anything else is removed.</p></div>
       <ImageFields project={p} />
       <TextInput label="Fundraising goal (USD)" name="goal" defaultValue={p.goal_cents ? (p.goal_cents / 100).toFixed(2) : ""} />
       <div className="grid gap-4 sm:grid-cols-2">

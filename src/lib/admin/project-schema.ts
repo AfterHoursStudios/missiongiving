@@ -5,6 +5,25 @@ import { dollarsToCents } from "@/lib/money";
 export const PROJECT_STATUSES = ["draft", "scheduled", "active", "goal_reached", "completed", "archived"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
+export const SUMMARY_MAX = 1000;
+
+/**
+ * Turns the text staff type into HTML for display, so the public page keeps the formatting they see in the editor:
+ * a blank line starts a new paragraph, a single Enter is a line break, and lines starting with "- " or "* " become a bullet list.
+ * Text that already contains HTML tags is passed through untouched (it is sanitized separately before it is shown).
+ */
+export function formatRichText(input: string): string {
+  if (/<\/?[a-z][a-z0-9]*[\s>/]/i.test(input)) return input;
+  // Leave existing entities (from the save-time sanitizer) alone so "&amp;" is not escaped twice.
+  const esc = (s: string) => s.replace(/&(?!(?:amp|lt|gt|quot|#\d+|#x[0-9a-f]+);)/gi, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return input.replace(/\r\n?/g, "\n").trim().split(/\n\s*\n/).map((block) => {
+    const lines = block.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim() !== "");
+    if (lines.length && lines.every((l) => /^\s*[-*•]\s+/.test(l)))
+      return `<ul>${lines.map((l) => `<li>${esc(l.replace(/^\s*[-*•]\s+/, ""))}</li>`).join("")}</ul>`;
+    return `<p>${lines.map(esc).join("<br>")}</p>`;
+  }).join("");
+}
+
 export function slugify(input: string): string {
   return input.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 }
@@ -31,7 +50,7 @@ const date = z.string().trim().optional().transform((v, ctx) => {
 export const projectSchema = z.object({
   title: z.string().trim().min(1, "Enter a title").max(120),
   slug: z.string().trim().toLowerCase().optional(),
-  summary: text(300),
+  summary: text(SUMMARY_MAX),
   story_html: z.string().max(50_000).optional().transform((v) => (v ? sanitizeStory(v) : null)),
   featured_image_url: httpsUrl,
   gallery: z.string().optional().transform((v, ctx) => {
