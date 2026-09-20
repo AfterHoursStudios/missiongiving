@@ -8,18 +8,13 @@ import { audit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { publicEnv } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
+import { activeSuperAdminIds, isSuperAdmin } from "./roles";
 import { canEditRolePermissions, canManageRole, wouldRemoveLastSuperAdmin } from "./staff-guards";
 import type { AdminState } from "./donor-actions";
 
 const uuid = z.string().uuid();
 
-async function superAdminIds() {
-  const db = createSupabaseAdminClient();
-  const { data: role } = await db.from("roles").select("id").eq("key", "super_admin").single();
-  const { data } = await db.from("staff_role_assignments").select("user_id, staff_profiles!inner(active)").eq("role_id", role?.id ?? "");
-  return (data ?? []).filter((r) => { const s = Array.isArray(r.staff_profiles) ? r.staff_profiles[0] : r.staff_profiles; return s?.active; }).map((r) => r.user_id as string);
-}
-const isSuperAdmin = async (userId: string) => (await superAdminIds()).includes(userId);
+const superAdminIds = activeSuperAdminIds;
 
 async function loadRole(roleId: string) {
   const { data } = await createSupabaseAdminClient().from("roles").select("id, key").eq("id", roleId).maybeSingle();

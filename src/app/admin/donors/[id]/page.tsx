@@ -4,6 +4,8 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { addNote, resendReceipt, setTag, updateDonor } from "@/lib/admin/donor-actions";
+import { refundDonation } from "@/lib/admin/finance-actions";
+import { validateRefund } from "@/lib/admin/finance-logic";
 import { SimpleForm, TextInput } from "@/components/donor/forms";
 import { StatusBadge, FREQUENCY_LABEL, METHOD_LABEL } from "@/components/donor/ui";
 import { formatMoney, netSettledCents } from "@/lib/money";
@@ -23,7 +25,7 @@ export default async function DonorDetail({ params }: { params: Promise<{ id: st
   if (!donor) notFound();
 
   const [donations, recurring, notes, assigned, allTags, prefs] = await Promise.all([
-    db.from("donations").select("id, amount_cents, refunded_cents, status, frequency, payment_method, donated_at, projects(title), receipts(receipt_number, is_final, delivery_history)").eq("donor_id", id).order("donated_at", { ascending: false }),
+    db.from("donations").select("id, amount_cents, refunded_cents, status, stripe_payment_intent_id, frequency, payment_method, donated_at, projects(title), receipts(receipt_number, is_final, delivery_history)").eq("donor_id", id).order("donated_at", { ascending: false }),
     db.from("recurring_donations").select("id, amount_cents, frequency, status, next_charge_at, projects(title)").eq("donor_id", id),
     db.from("donor_notes").select("id, body, created_at").eq("donor_id", id).order("created_at", { ascending: false }),
     db.from("donor_tag_assignments").select("donor_tags(id, name)").eq("donor_id", id),
@@ -69,6 +71,13 @@ export default async function DonorDetail({ params }: { params: Promise<{ id: st
                     <span className="block text-sm text-ink-soft">{rc.is_final ? "Final" : "Pending"} · sent {rc.delivery_history?.length ?? 0}×</span>
                     {canEdit && rc.is_final && <div className="mt-1"><SimpleForm action={resendReceipt} submit="Resend"><input type="hidden" name="donationId" value={g.id} /></SimpleForm></div>}
                   </>) : "—"}
+                  {perms.has("refunds.issue") && !validateRefund({ status: g.status, payment_method: g.payment_method, amount_cents: g.amount_cents, refunded_cents: g.refunded_cents, has_payment_intent: !!g.stripe_payment_intent_id }, 1) && (
+                    <details className="mt-2"><summary className="cursor-pointer text-sm font-semibold text-danger underline">Refund</summary>
+                      <div className="mt-2 w-56"><SimpleForm action={refundDonation} submit="Submit refund" tone="danger">
+                        <input type="hidden" name="donationId" value={g.id} />
+                        <TextInput label={`Amount (max ${((g.amount_cents - g.refunded_cents) / 100).toFixed(2)})`} name="amount" defaultValue={((g.amount_cents - g.refunded_cents) / 100).toFixed(2)} />
+                        <TextInput label="Reason" name="reason" />
+                      </SimpleForm></div></details>)}
                 </td>
               </tr>);
           })}</tbody></table></div>

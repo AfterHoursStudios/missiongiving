@@ -10,6 +10,10 @@ export const metadata: Metadata = { title: { default: "Admin", template: "%s | A
 const NAV: { href: string; label: string; perm: Permission }[] = [
   { href: "/admin", label: "Dashboard", perm: "reports.view" },
   { href: "/admin/donors", label: "Donors", perm: "donors.view" },
+  { href: "/admin/reports", label: "Reports", perm: "reports.view" },
+  { href: "/admin/expenses", label: "Expenses", perm: "expenses.record" },
+  { href: "/admin/reconciliation", label: "Reconciliation", perm: "finance.view" },
+  { href: "/admin/offline-gift", label: "Offline gift", perm: "finance.view" },
   { href: "/admin/projects", label: "Projects", perm: "projects.manage" },
   { href: "/admin/tiers", label: "Donation tiers", perm: "tiers.manage" },
   { href: "/admin/messages", label: "Messages", perm: "comms.send" },

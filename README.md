@@ -2,7 +2,7 @@
 
 Donation-management platform for Ultimate Mission. Next.js 16 (App Router), TypeScript strict, Tailwind 4, Supabase, Stripe, Resend.
 
-> **Status: Phases 1-4 built** (foundation; donations; donor portal; admin portal). Phases 5-7 (financial reports, communications, quality/deployment) are not built yet. See the roadmap.
+> **Status: Phases 1-5 built** (foundation; donations; donor portal; admin portal; financial reporting). Phases 6-7 (communications campaigns, quality/deployment) are not built yet. See the roadmap.
 > **Not yet verified against live Stripe, Supabase or Resend accounts.** Logic is unit-tested with in-memory fakes; run the test-mode steps below before trusting it.
 
 ## Local setup
@@ -17,7 +17,7 @@ Without Supabase variables the public pages render and private routes are not ga
 
 ### Supabase
 1. Create a project. Copy URL, anon key and service-role key into `.env.local` (the service-role key is server-only).
-2. Apply migrations in order (SQL editor, or `supabase db push` with the CLI): `0001_schema.sql`, `0002_rls_and_rbac.sql`, `0003_donation_flow.sql`, `0004_donor_portal.sql`, `0005_admin_crm.sql`, `0006_admin_remainder.sql`, then `supabase/seed.sql` (fake/placeholder data only).
+2. Apply migrations in order (SQL editor, or `supabase db push` with the CLI): `0001_schema.sql`, `0002_rls_and_rbac.sql`, `0003_donation_flow.sql`, `0004_donor_portal.sql`, `0005_admin_crm.sql`, `0006_admin_remainder.sql`, `0007_financial_reporting.sql`, then `supabase/seed.sql` (fake/placeholder data only).
 3. Auth > URL configuration: add `<APP_URL>/auth/callback` as a redirect URL. Enable email confirmation.
 4. Initial administrator (no hardcoded password): set `INITIAL_ADMIN_EMAIL`, run `npm run admin:bootstrap`. Supabase emails an invitation; the person sets their own password. It refuses to run if a Super Admin already exists.
 
@@ -35,7 +35,7 @@ Dashboard > Settings > Billing > Customer portal: activate it and allow **paymen
 Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them emails are skipped (one log line, no recipient or content).
 
 ## Scripts
-`npm run lint` · `npm run typecheck` · `npm test` (84 unit tests) · `npm run build` · `npm run test:e2e` (suite added in Phase 7)
+`npm run lint` · `npm run typecheck` · `npm test` (121 unit tests) · `npm run build` · `npm run test:e2e` (suite added in Phase 7)
 
 ## Donor portal (Phase 3)
 `/dashboard` overview, `/dashboard/contributions` (search, status/frequency/year filters, pagination, receipt download), `/dashboard/recurring` (change amount, cancel with confirmation, update payment method via Stripe portal, ended gifts kept), `/dashboard/statements` (PDF per calendar year), `/dashboard/profile` (contact, email preferences, password, data export, deletion request).
@@ -56,6 +56,15 @@ Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them 
 - **Audit log** (`/admin/audit`, `audit.view`) and **privacy requests** (`/admin/privacy`): approving a deletion runs `anonymize_donor()` (removes identity, notes, tags, dedication names and the login; retains gift records; refuses while a recurring gift is active).
 - CSV exports neutralize spreadsheet formulas (`src/lib/csv.ts`).
 - Admin data access uses the service-role client **after** `requirePermission()`; dashboards select only non-personal columns so Read-Only Reporters see aggregates, not donor identities.
+
+## Financial reporting (Phase 5)
+- **Expenses** (`/admin/expenses`): date, vendor, description, amount, category, project, restricted/unrestricted, payment method, reference, notes, receipt attachment, created-by and approved-by. New expenses are **pending** and excluded from reports until approved. Approval needs finance access and a *second person* (Super Admins excepted, and audited). Editing an approved expense sends it back to pending. Expenses are archived, never deleted. Categories (editable, with a functional class: program / fundraising / management) and annual **budgets** live under *Categories and budgets*.
+- **Receipt uploads** go to a **private** Supabase Storage bucket (`expense-receipts`, no storage policies: server-only). Files are identified by content (magic bytes), limited to PDF/PNG/JPEG/WebP and 5 MB, stored under server-generated names, and viewed through a 60-second signed URL after a permission check.
+- **Reports** (`/admin/reports`): Management P&L and Statement of Activities, on screen, printable, **CSV** and **PDF** (organization name, period, filters, generated date, page numbers, accountant-review disclaimer). Filters: date range or calendar year, fund, project, frequency, payment method, donor (by email; needs `donors.view`), donation status, expense category, restricted/unrestricted. Screen, CSV and PDF are built from the same sections so they cannot disagree. Exports are rate-limited and audited.
+- **Definitions** (documented in `src/lib/reports/financials.ts`): revenue = settled gifts only (succeeded, partially refunded, refunded); disputed gifts are excluded and shown on a memo line; refunds are attributed to the *original gift's* period (per-refund dates are not stored); Stripe processing fees are an expense classed as fundraising (an assumption to confirm with your accountant); restricted/unrestricted follows the fund and the expense classification; release from restriction is not modeled; budget vs actual compares the full-year budget with approved expenses from the start of the fiscal year to the end of the selected period.
+- **Offline gifts** (`/admin/offline-gift`): checks/cash/wires become settled, receipted, audited donations dated when received.
+- **Refunds**: on a donor's page, for staff with `refunds.issue`. The refund is submitted to Stripe with an idempotency key; the gift's totals and status change only when the signed `charge.refunded` webhook arrives.
+- **Reconciliation** (`/admin/reconciliation`): payments pending too long (card > 1 h, ACH > 7 days), recent failures, disputes, settled gifts with no final receipt, refund/status inconsistencies, incomplete or past-due recurring gifts, and failed/stalled webhook events with a safe **Retry** (re-fetches the event from Stripe and runs the same idempotent processor).
 
 ## Architecture
 - `src/proxy.ts` refreshes the Supabase session and redirects unauthenticated users away from `/dashboard` and `/admin`. It is **not** the security boundary: pages, actions and handlers call `requirePermission()` (`src/lib/auth/session.ts`), and Postgres RLS enforces access again.
@@ -80,6 +89,8 @@ Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them 
 - Cancel writes status locally as well as via webhook; in a rare race a donor could receive two cancellation emails.
 - Admin: images are entered as https URLs (no upload/Storage UI yet). Story and template editors are HTML textareas with sanitization, not a WYSIWYG editor.
 - Admin: the home-page impact statistics, testimonials and About text are still placeholders in code; they are not yet editable in the admin. The footer does not yet read the social links/contact email from settings.
+- Reports: refunds use the original gift's date; no per-refund ledger. Fee classification, restriction release and accrual accounting are simplified; this is not GAAP/audited reporting. The dashboard and reports load up to 100,000 rows into memory.
+- Reports: Stripe fees are recorded only when a payment succeeds; gifts from before the fee lookup existed, and offline gifts, have $0 fees.
 - Admin: data-retention is a recorded setting only; nothing purges data automatically.
 - Admin: merge from the UI supports two records at a time; the dashboard loads up to 50,000 donations in memory (move to SQL aggregates at larger scale).
 - Admin: staff sign-ins via magic link are not audited (only password sign-ins). Tier date fields are interpreted as UTC.
@@ -92,4 +103,4 @@ Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them 
 - RLS policies and the Supabase repository have not been run against a live database; add integration tests in Phase 7.
 
 ## Roadmap
-1 done · 2 done (Stripe, webhooks, receipts) · 3 done (donor portal) · 4 done (admin portal) · 5 Financial reports · 6 Communications · 7 Tests, a11y, security review, deploy docs.
+1 done · 2 done (Stripe, webhooks, receipts) · 3 done (donor portal) · 4 done (admin portal) · 5 done (financial reports) · 6 Communications · 7 Tests, a11y, security review, deploy docs.
