@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getStaffPermissions, requireUser } from "@/lib/auth/session";
 import { signOutAction } from "@/lib/auth/actions";
+import { Logo } from "@/components/site/logo";
 
 export const metadata: Metadata = { title: { default: "Your account", template: "%s | Your account" }, robots: { index: false, follow: false } };
 
@@ -17,7 +18,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <>
       <header className="border-b border-line no-print">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <Link href="/" className="font-display text-xl font-semibold text-brand-800">Mission Giving</Link>
+          <Logo />
           <div className="flex items-center gap-3">
             {isStaff && <Link href="/admin" className="min-h-11 px-3 py-2 font-semibold underline">Admin</Link>}
             <Link href="/donate" className="min-h-11 rounded-md bg-brand-700 px-4 py-2 font-semibold text-white hover:bg-brand-800">Give</Link>

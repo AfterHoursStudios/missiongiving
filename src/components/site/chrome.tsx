@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "./logo";
 
 const nav = [
   { href: "/projects", label: "Projects" },
@@ -10,7 +11,7 @@ export function SiteHeader() {
   return (
     <header className="border-b border-line bg-paper no-print">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
-        <Link href="/" className="font-display text-2xl font-semibold text-brand-800">Mission Giving</Link>
+        <Logo priority />
         <nav aria-label="Main" className="flex items-center gap-5">
           {nav.map((n) => (
             <Link key={n.href} href={n.href} className="hidden font-medium hover:underline sm:inline">{n.label}</Link>
