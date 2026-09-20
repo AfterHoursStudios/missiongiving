@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "format": "prettier --write .",
     "admin:bootstrap": "tsx --env-file=.env.local scripts/bootstrap-admin.ts",
-    "seed:sample": "tsx --env-file=.env.local scripts/seed-sample.ts --yes"
+    "seed:sample": "tsx --env-file=.env.local scripts/seed-sample.ts --yes",
+    "admin:create": "tsx --env-file=.env.local scripts/create-admin.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
