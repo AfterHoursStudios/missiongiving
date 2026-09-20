@@ -133,7 +133,7 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
               <button key={t.id} type="button" className={choice(tierId === t.id)} aria-pressed={tierId === t.id}
                 onClick={() => { setTierId(t.id); setCustom(""); }}>
                 <span className="text-xl">{formatMoney(t.amount_cents)}</span>
-                {t.featured && <span className="ml-2 rounded bg-teal-800 px-2 py-0.5 text-xs font-semibold text-white">Recommended</span>}
+                {t.featured && <span className="ml-2 rounded bg-gold px-2 py-0.5 text-xs font-semibold text-ink">Recommended</span>}
                 {t.short_description && <span className="block text-sm font-normal text-ink-soft">{t.short_description}</span>}
               </button>
             ))}

@@ -1,23 +1,25 @@
 @import "tailwindcss";
 
 /* ---------- Mission Giving design tokens ----------
-   Original palette: warm terracotta + deep teal on warm paper.
+   Palette built from the Mission Giving logo: leaf green, deep teal-navy and gold on a soft cool-neutral paper.
    Contrast checked for WCAG 2.2 AA: body ink on paper ~14:1, brand-700 on paper ~6:1. */
 :root {
-  --paper: #fbf7f2;
-  --paper-2: #f3ece2;
-  --ink: #241f1c;
-  --ink-soft: #5b524b;
-  --line: #e2d8ca;
+  --paper: #f7faf7;
+  --paper-2: #eaf2ec;
+  --ink: #14262b;
+  --ink-soft: #46595f;
+  --line: #cfe0d6;
 
-  --brand-50: #fdf1ec;
-  --brand-500: #d9633b;
-  --brand-600: #c04f28;
-  --brand-700: #a13f1e;   /* primary action; white text 6.3:1 */
-  --brand-800: #7f3218;
+  --brand-50: #eef6e9;
+  --brand-500: #478e20;
+  --brand-600: #3d7d1a;
+  --brand-700: #367018;   /* primary action; white text 6.3:1 */
+  --brand-800: #2b5a13;
 
-  --teal-600: #1d6b6b;
-  --teal-800: #124848;
+  --teal-600: #0a6478;
+  --teal-800: #024352;
+  --gold: #e6ae12;       /* logo gold: decorative fills and badges (use ink text on it) */
+  --gold-dark: #7a5800;  /* text-safe dark gold */
 
   --success: #1e6b3a;  --success-bg: #e6f3ea;
   --warning: #8a5a00;  --warning-bg: #fdf1d6;
@@ -46,6 +48,8 @@
   --color-brand-800: var(--brand-800);
   --color-teal-600: var(--teal-600);
   --color-teal-800: var(--teal-800);
+  --color-gold: var(--gold);
+  --color-gold-dark: var(--gold-dark);
   --color-success: var(--success);
   --color-success-bg: var(--success-bg);
   --color-warning: var(--warning);

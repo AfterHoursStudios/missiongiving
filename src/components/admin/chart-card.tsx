@@ -6,7 +6,7 @@ import {
 import type { Table } from "@/lib/admin/metrics";
 
 // Distinct hues plus differing luminance so series remain distinguishable without color perception.
-const COLORS = ["#124848", "#c04f28", "#6b4fbb", "#8a6d00", "#2f7d3c", "#a3221a"];
+const COLORS = ["#024352", "#478e20", "#a06a00", "#6b4fbb", "#a3221a", "#5b7f8a"];
 
 interface Props { id: string; title: string; description: string; table: Table; csvHref: string }
 

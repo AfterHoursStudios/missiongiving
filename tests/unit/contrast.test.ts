@@ -31,6 +31,7 @@ describe("WCAG contrast of design tokens", () => {
     ["brand-800", "paper", "headings/stat numbers"], ["brand-700", "paper", "accent text and links"], ["brand-700", "paper-2", "accent text on tinted sections"],
     ["teal-600", "paper", "eyebrow label"], ["teal-600", "paper-2", "eyebrow label on tinted sections"], ["teal-800", "paper", "outline buttons"],
     ["success", "success-bg", "success message"], ["warning", "warning-bg", "warning message"], ["info", "info-bg", "info message"], ["danger", "danger-bg", "error message"],
+    ["ink", "gold", "Recommended badge on logo gold"], ["gold-dark", "paper", "dark gold text"], ["gold-dark", "paper-2", "dark gold text on tinted sections"],
     ["danger", "paper", "danger links"], ["warning", "paper", "warning text"], ["success", "paper", "success text"],
   ];
   for (const [fg, bg, use] of TEXT_PAIRS)
@@ -38,7 +39,7 @@ describe("WCAG contrast of design tokens", () => {
 
   const ON_COLOR: [string, string, string][] = [
     [WHITE, "brand-700", "primary button"], [WHITE, "brand-800", "primary button hover"], [WHITE, "teal-800", "footer and secondary button"],
-    [WHITE, "danger", "danger button"], [WHITE, "ink", "skip link"],
+    [WHITE, "danger", "danger button"], [WHITE, "brand-600", "primary button (lighter shade)"], [WHITE, "ink", "skip link"],
   ];
   for (const [fg, bg, use] of ON_COLOR)
     it(`white on ${bg} (${use}) is at least 4.5:1`, () => expect(contrast(fg, token(bg))).toBeGreaterThanOrEqual(4.5));
@@ -47,5 +48,7 @@ describe("WCAG contrast of design tokens", () => {
     expect(contrast(token("teal-600"), token("paper"))).toBeGreaterThanOrEqual(3);
     expect(contrast(token("ink-soft"), WHITE)).toBeGreaterThanOrEqual(3);      // input borders
     expect(contrast(token("brand-700"), token("paper-2"))).toBeGreaterThanOrEqual(3); // progress bar fill on its track
+    expect(contrast(token("brand-500"), token("paper"))).toBeGreaterThanOrEqual(3);   // exact logo green as a large/graphic element
+    expect(contrast(token("gold"), token("teal-800"))).toBeGreaterThanOrEqual(3);     // gold accents on the navy sections
   });
 });

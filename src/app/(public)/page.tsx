@@ -44,6 +44,7 @@ export default async function HomePage() {
           <div>
             <p className="font-semibold uppercase tracking-wide text-teal-600">Ultimate Mission</p>
             <h1 className="mt-3 text-4xl font-semibold sm:text-5xl">Give hope. Empower women. Save lives.</h1>
+            <span aria-hidden="true" className="mt-4 block h-1.5 w-20 rounded bg-gold" />
             <p className="mt-5 max-w-prose text-lg text-ink-soft">
               Ultimate Mission equips local women as community health workers, caring for infants in rural villages
               in India, Ethiopia, the Philippines and South Sudan.
