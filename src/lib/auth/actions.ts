@@ -69,8 +69,10 @@ export async function signInAction(_: FormState, form: FormData): Promise<FormSt
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password: pw });
   if (error) return { error: "Email or password is incorrect, or your email is not yet verified." };
-  await auditStaffLogin(data.user.id);
-  redirect(next);
+  const isStaff = await auditStaffLogin(data.user.id);
+  // Staff land in the admin area unless they were heading somewhere specific; donors land in their account.
+  const requested = String(form.get("next") ?? "") !== "";
+  redirect(requested ? next : isStaff ? "/admin" : "/dashboard");
 }
 
 export async function magicLinkAction(_: FormState, form: FormData): Promise<FormState> {

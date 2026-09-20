@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireUser } from "@/lib/auth/session";
+import { getStaffPermissions, requireUser } from "@/lib/auth/session";
 import { signOutAction } from "@/lib/auth/actions";
 
 export const metadata: Metadata = { title: { default: "Your account", template: "%s | Your account" }, robots: { index: false, follow: false } };
@@ -11,13 +11,15 @@ const links = [
 ] as const;
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  await requireUser();
+  const user = await requireUser();
+  const isStaff = (await getStaffPermissions(user.id)).size > 0;
   return (
     <>
       <header className="border-b border-line no-print">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <Link href="/" className="font-display text-xl font-semibold text-brand-800">Mission Giving</Link>
           <div className="flex items-center gap-3">
+            {isStaff && <Link href="/admin" className="min-h-11 px-3 py-2 font-semibold underline">Admin</Link>}
             <Link href="/donate" className="min-h-11 rounded-md bg-brand-700 px-4 py-2 font-semibold text-white hover:bg-brand-800">Give</Link>
             <form action={signOutAction}><button className="min-h-11 px-3 font-semibold underline">Sign out</button></form>
           </div>
