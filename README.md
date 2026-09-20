@@ -35,7 +35,7 @@ Dashboard > Settings > Billing > Customer portal: activate it and allow **paymen
 Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them emails are skipped (one log line, no recipient or content).
 
 ## Scripts
-`npm run lint` · `npm run typecheck` · `npm test` (65 unit tests) · `npm run build` · `npm run test:e2e` (suite added in Phase 7)
+`npm run lint` · `npm run typecheck` · `npm test` (64 unit tests) · `npm run build` · `npm run test:e2e` (suite added in Phase 7)
 
 ## Donor portal (Phase 3)
 `/dashboard` overview, `/dashboard/contributions` (search, status/frequency/year filters, pagination, receipt download), `/dashboard/recurring` (change amount, cancel with confirmation, update payment method via Stripe portal, ended gifts kept), `/dashboard/statements` (PDF per calendar year), `/dashboard/profile` (contact, email preferences, password, data export, deletion request).
