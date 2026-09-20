@@ -1,26 +1,91 @@
 @import "tailwindcss";
 
+/* ---------- Mission Giving design tokens ----------
+   Original palette: warm terracotta + deep teal on warm paper.
+   Contrast checked for WCAG 2.2 AA: body ink on paper ~14:1, brand-700 on paper ~6:1. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #fbf7f2;
+  --paper-2: #f3ece2;
+  --ink: #241f1c;
+  --ink-soft: #5b524b;
+  --line: #e2d8ca;
+
+  --brand-50: #fdf1ec;
+  --brand-500: #d9633b;
+  --brand-600: #c04f28;
+  --brand-700: #a13f1e;   /* primary action; white text 6.3:1 */
+  --brand-800: #7f3218;
+
+  --teal-600: #1d6b6b;
+  --teal-800: #124848;
+
+  --success: #1e6b3a;  --success-bg: #e6f3ea;
+  --warning: #8a5a00;  --warning-bg: #fdf1d6;
+  --info: #1d4f8a;     --info-bg: #e5eefb;
+  --danger: #a3221a;   --danger-bg: #fbe7e5;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgb(36 31 28 / 0.08);
+  --shadow-md: 0 6px 18px rgb(36 31 28 / 0.10);
+
+  --space-section: clamp(3rem, 8vw, 6rem);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-line: var(--line);
+  --color-brand-50: var(--brand-50);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-teal-600: var(--teal-600);
+  --color-teal-800: var(--teal-800);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --font-sans: var(--font-body), system-ui, sans-serif;
+  --font-display: var(--font-display), Georgia, serif;
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+h1, h2, h3 { font-family: var(--font-display), Georgia, serif; line-height: 1.15; letter-spacing: -0.01em; }
+
+/* Visible, high-contrast keyboard focus (WCAG 2.4.7 / 2.4.11) */
+:focus-visible { outline: 3px solid var(--teal-600); outline-offset: 3px; border-radius: 2px; }
+
+.skip-link {
+  position: absolute; left: -999px; top: 0; background: var(--ink); color: #fff; padding: .75rem 1rem; z-index: 100;
+}
+.skip-link:focus { left: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
 }

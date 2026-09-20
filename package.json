@@ -6,21 +6,53 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "format": "prettier --write .",
+    "admin:bootstrap": "tsx --env-file=.env.local scripts/bootstrap-admin.ts"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.9.1",
+    "@react-email/components": "^1.0.12",
+    "@stripe/react-stripe-js": "^6.10.0",
+    "@stripe/stripe-js": "^9.16.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
+    "@tanstack/react-table": "^9.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.47.0",
     "next": "16.3.5",
+    "pdfkit": "^0.20.2",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-hook-form": "^7.88.0",
+    "recharts": "^3.10.1",
+    "resend": "^6.28.1",
+    "sanitize-html": "^2.17.7",
+    "server-only": "^0.0.1",
+    "stripe": "^22.6.2",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24.13.6",
+    "@types/pdfkit": "^0.17.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sanitize-html": "^2.16.1",
+    "@vitejs/plugin-react": "^6.1.1",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "prettier": "^3.9.8",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.0.1"
   }
 }
