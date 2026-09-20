@@ -8,6 +8,7 @@ export interface OrgSettings {
   min_donation_cents: number; max_donation_cents: number; public_recognition_enabled: boolean;
   no_goods_or_services_statement: string; tax_acknowledgment: string;
   default_thank_you: string; email_sender_name: string; email_reply_to: string;
+  timezone: string; recurring_amount_change_enabled: boolean;
 }
 
 const DEFAULTS: OrgSettings = {
@@ -16,6 +17,7 @@ const DEFAULTS: OrgSettings = {
   guest_donations_enabled: false, custom_amount_enabled: true, min_donation_cents: 500, max_donation_cents: 5_000_000,
   public_recognition_enabled: false, no_goods_or_services_statement: "", tax_acknowledgment: "",
   default_thank_you: "Thank you for your generous gift.", email_sender_name: "Mission Giving", email_reply_to: "",
+  timezone: "America/Los_Angeles", recurring_amount_change_enabled: true,
 };
 
 /** Settings are read with the service role because donors/anon cannot read the table directly (RLS). Only expose safe fields to clients. */
