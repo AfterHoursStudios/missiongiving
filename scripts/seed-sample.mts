@@ -1,6 +1,6 @@
 /**
  * Loads FAKE sample data for local development or demos.
- *   ALLOW_SAMPLE_SEED=yes npx tsx --env-file=.env.local scripts/seed-sample.ts --yes
+ *   ALLOW_SAMPLE_SEED=yes npx tsx --env-file=.env.local scripts/seed-sample.mts --yes
  * Safety: refuses to run without both the env flag and --yes, refuses live Stripe keys, and is idempotent (skips if sample
  * donors already exist). Donation and expense rows cannot be deleted through the app (by design); to clear sample data
  * from a scratch database use supabase/dev/remove-sample-data.sql as the database owner. NEVER seed a production database.

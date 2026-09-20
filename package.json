@@ -11,9 +11,9 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "format": "prettier --write .",
-    "admin:bootstrap": "tsx --env-file=.env.local scripts/bootstrap-admin.ts",
-    "seed:sample": "tsx --env-file=.env.local scripts/seed-sample.ts --yes",
-    "admin:create": "tsx --env-file=.env.local scripts/create-admin.ts"
+    "admin:bootstrap": "tsx --env-file=.env.local scripts/bootstrap-admin.mts",
+    "seed:sample": "tsx --env-file=.env.local scripts/seed-sample.mts --yes",
+    "admin:create": "tsx --env-file=.env.local scripts/create-admin.mts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

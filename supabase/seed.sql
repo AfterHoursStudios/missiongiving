@@ -29,5 +29,5 @@ insert into message_templates (key, name, subject, body_html, body_text) values
  ('project_announcement','Project announcement','New project: {{project_name}}','<p>{{project_name}} has launched.</p>','{{project_name}} has launched.'),
  ('project_update','Project update','Update on {{project_name}}','<p>News from {{project_name}}.</p>','News from {{project_name}}.'),
  ('project_goal_reached','Project goal reached','{{project_name}} reached its goal','<p>Thanks to you, {{project_name}} reached its goal.</p>','Thanks to you, {{project_name}} reached its goal.');
--- Sample donors/donations are created by `npm run seed:sample` (scripts/seed-sample.ts, added in Phase 2)
--- so they can be labeled and removed cleanly.
+-- Sample donors/donations are created by `npm run seed:sample` (scripts/seed-sample.mts). Sample rows are labeled
+-- [SAMPLE] and can be cleared from a scratch database with supabase/dev/remove-sample-data.sql.

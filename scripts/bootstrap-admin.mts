@@ -1,6 +1,6 @@
 /**
  * One-time initial Super Admin bootstrap. No password is ever hardcoded.
- * Usage: npx tsx --env-file=.env.local scripts/bootstrap-admin.ts
+ * Usage: npx tsx --env-file=.env.local scripts/bootstrap-admin.mts
  * Sends a Supabase invitation email to INITIAL_ADMIN_EMAIL; the person sets their own password from the link,
  * and is then granted the super_admin role. Refuses to run if a Super Admin already exists.
  */

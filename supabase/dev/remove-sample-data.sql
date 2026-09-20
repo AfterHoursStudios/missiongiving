@@ -1,4 +1,4 @@
--- Removes the FAKE data created by scripts/seed-sample.ts from a SCRATCH/DEVELOPMENT database.
+-- Removes the FAKE data created by scripts/seed-sample.mts from a SCRATCH/DEVELOPMENT database.
 -- Run as the database owner (SQL editor). It temporarily disables the "no hard delete" triggers that protect financial
 -- records, so DO NOT run it on a production database and never edit it to match real donors.
 begin;

@@ -28,7 +28,7 @@ Tick every box before taking real donations. Items marked **[open]** are known g
 - [ ] Cron jobs running (check Vercel logs for `/api/cron/send-campaigns` and `/api/cron/retention`).
 - [ ] Initial Super Admin created by invitation; a second Super Admin exists (so one lost account cannot lock the organization out).
 - [ ] Custom domain with HTTPS; `NEXT_PUBLIC_APP_URL` matches it; auth redirect URLs updated.
-- [ ] Sample/seed data absent from production (`scripts/seed-sample.ts` refuses live Stripe keys, but do not run it there at all).
+- [ ] Sample/seed data absent from production (`scripts/seed-sample.mts` refuses live Stripe keys, but do not run it there at all).
 
 ## Operations
 - [ ] Someone owns the daily check of *Reconciliation* (pending too long, failed webhooks, disputes).
