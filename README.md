@@ -29,7 +29,7 @@ With no Supabase variables the public pages render and private areas redirect to
 the admin portal you need a Supabase project and Stripe test keys:
 
 1. **Supabase**: create a project; put its URL, anon key and service-role key in `.env.local`. Apply
-   `supabase/migrations/0001` to `0008` in order, then `supabase/seed.sql` (SQL editor or `supabase db push`).
+   `supabase/migrations/0001` to `0009` in order, then `supabase/seed.sql` (SQL editor or `supabase db push`).
    Run `supabase/tests/rls_isolation.sql` and confirm every check prints `PASS`.
    Authentication > URL configuration: add `http://localhost:3000/auth/callback`.
 2. **First administrator** (no hardcoded password): set `INITIAL_ADMIN_EMAIL`, run `npm run admin:bootstrap`, open the emailed invitation and choose a password.

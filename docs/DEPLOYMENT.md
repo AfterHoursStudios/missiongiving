@@ -8,13 +8,13 @@ account with a verified sending domain, and a domain name. Do everything first i
 1. Create the project. Note the URL, anon key and service-role key (**server-only**).
 2. Apply migrations in order with the SQL editor or the Supabase CLI (`supabase link`, then `supabase db push`):
    `0001_schema.sql` `0002_rls_and_rbac.sql` `0003_donation_flow.sql` `0004_donor_portal.sql` `0005_admin_crm.sql`
-   `0006_admin_remainder.sql` `0007_financial_reporting.sql` `0008_communications.sql`. Then `supabase/seed.sql` (roles are created
+   `0006_admin_remainder.sql` `0007_financial_reporting.sql` `0008_communications.sql` `0009_project_images.sql`. Then `supabase/seed.sql` (roles are created
    by migration 0002; the seed adds placeholder tiers, expense categories and message templates).
 3. Run `supabase/tests/rls_isolation.sql` and confirm every check prints `PASS`.
 4. Authentication > URL configuration: Site URL = your production URL; add `<APP_URL>/auth/callback` to redirect URLs. Require email confirmation.
 5. Authentication > SMTP: configure custom SMTP (for example Resend's SMTP) so verification and reset emails are reliable; Supabase's built-in sender is heavily limited.
 6. Enable MFA (TOTP) for staff accounts.
-7. Storage: confirm the private `expense-receipts` bucket exists (created by migration 0007) and has no public policies.
+7. Storage: confirm the private `expense-receipts` bucket (migration 0007) has no public policies, and that the public-read `project-images` bucket exists (migration 0009; the app also creates it on first upload).
 8. Enable backups (see `docs/BACKUP_RECOVERY.md`).
 
 ## 2. Stripe

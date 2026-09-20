@@ -9,14 +9,23 @@ import { audit } from "@/lib/audit";
 import { formatMoney } from "@/lib/money";
 import { isPubliclyListed, offlineAdjustmentSchema, projectSchema, projectToRow, sanitizeStory } from "./project-schema";
 import type { AdminState } from "./donor-actions";
+import { applyImageChanges, loadExistingImages, removeImages } from "./project-images";
 
 export async function saveProject(_: AdminState, form: FormData): Promise<AdminState> {
   const { user } = await requirePermission("projects.manage");
-  const parsed = projectSchema.safeParse(Object.fromEntries(form));
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const row = projectToRow(parsed.data);
   const db = createSupabaseAdminClient();
   const id = form.get("id");
+  const editingId = typeof id === "string" && id ? id : null;
+  if (editingId && !z.string().uuid().safeParse(editingId).success) return { error: "Project not found." };
+
+  // Images: the database is the source of truth for what is already stored; the browser can only add uploads or ask for removals.
+  const existing = editingId ? await loadExistingImages(db, editingId) : { featured: null, share: null, gallery: [] };
+  if (!existing) return { error: "Project not found." };
+  const parsed = projectSchema.safeParse({ ...Object.fromEntries(form), featured_image_url: existing.featured ?? "", share_image_url: existing.share ?? "", gallery: existing.gallery.join("\n") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const changes = await applyImageChanges(db, form, existing);
+  if ("error" in changes) return { error: changes.error };
+  const row = { ...projectToRow(parsed.data), featured_image_url: changes.images.featured, share_image_url: changes.images.share, gallery: changes.images.gallery };
 
   if (typeof id === "string" && id) {
     if (!z.string().uuid().safeParse(id).success) return { error: "Project not found." };
@@ -24,6 +33,7 @@ export async function saveProject(_: AdminState, form: FormData): Promise<AdminS
     if (!before) return { error: "Project not found." };
     const { error } = await db.from("projects").update(row).eq("id", id);
     if (error) return { error: error.code === "23505" ? "That URL slug is already used by another project." : "Could not save the project." };
+    await removeImages(db, changes.toDelete);
     if (!isPubliclyListed(before) && isPubliclyListed(row)) await audit(user.id, "project.publish", "project", id, { status: row.status, slug: row.slug });
     revalidatePath("/admin/projects"); revalidatePath("/projects"); revalidatePath(`/projects/${row.slug}`);
     const live = ["active", "goal_reached", "completed"].includes(row.status);

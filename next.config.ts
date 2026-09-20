@@ -32,8 +32,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["pdfkit"],
-  // Expense receipt uploads (max 5 MB file + multipart overhead).
-  experimental: { serverActions: { bodySizeLimit: "6mb" } },
+  // File uploads: expense receipts (5 MB) and project images (several files, 28 MB total enforced in code).
+  experimental: { serverActions: { bodySizeLimit: "30mb" } },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

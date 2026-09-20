@@ -42,7 +42,7 @@ against real services using the steps in `docs/TESTING.md`.
 - **MFA and account lockout** are not implemented (rate limiting only, in memory).
 - **Bot protection** on registration/donation is a honeypot only.
 - **Content that needs the organization**: logo and photography, approved impact statistics, impact descriptions per tier, testimonials, the legal pages, the About page, EIN and the legal name. All are clearly marked placeholders.
-- **Storage/image upload UI** for project and tier images (URLs only).
+- **Image upload** works for projects (featured, gallery, sharing image). Donation-tier images are still URLs, and images have no alt-text field yet (they render as decorative).
 - **Billing address** collection at checkout.
 - **Formal accessibility audit**: axe finds no WCAG 2.2 AA violations on the tested pages and all design-token contrast pairs pass, but automated tools catch only part of WCAG. Screen-reader and keyboard testing of the donation flow and admin screens by a person is still needed.
 - **Penetration test / independent security review**: none performed. See `docs/SECURITY_REVIEW.md`.
