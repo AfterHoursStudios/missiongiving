@@ -10,6 +10,7 @@ export const LEGAL_PAGES: Record<string, { title: string; summary: string; point
       "We collect the details you give us (name, email, optional phone and address) and gift records.",
       "Card and bank details are handled by Stripe. Mission Giving does not store them.",
       "Receipts and payment notices are always emailed. News and project updates are sent only if you opt in, and you can change this any time in your account.",
+      "We use cookie-less, privacy-friendly analytics that count page views without identifying individuals.",
       "You can download your data or request deletion from your account. Records required for financial and tax purposes are retained.",
     ],
   },

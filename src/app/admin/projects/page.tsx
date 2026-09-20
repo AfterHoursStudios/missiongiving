@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { syncGoalStatuses } from "@/lib/admin/project-actions";
+import { syncGoalStatuses } from "@/lib/admin/project-sync";
 import { formatMoney, projectProgress } from "@/lib/money";
 
 export const dynamic = "force-dynamic";

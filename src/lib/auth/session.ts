@@ -1,10 +1,12 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/env";
 import type { Permission } from "./permissions";
 
 /** Verified user: validates the JWT with Supabase rather than trusting cookies alone. */
 export async function getUser() {
+  if (!isSupabaseConfigured) return null; // no backend: nobody is signed in (fail closed)
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
   return data.user ?? null;

@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "format": "prettier --write .",
-    "admin:bootstrap": "tsx --env-file=.env.local scripts/bootstrap-admin.ts"
+    "admin:bootstrap": "tsx --env-file=.env.local scripts/bootstrap-admin.ts",
+    "seed:sample": "tsx --env-file=.env.local scripts/seed-sample.ts --yes"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -21,6 +22,7 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
     "@tanstack/react-table": "^9.2.4",
+    "@vercel/analytics": "^2.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.47.0",

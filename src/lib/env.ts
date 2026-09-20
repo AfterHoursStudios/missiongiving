@@ -34,3 +34,6 @@ export function serverEnv() {
     EMAIL_BATCH_SIZE: process.env.EMAIL_BATCH_SIZE,
   };
 }
+
+/** True when the server can use the service-role key. Never exposes the key itself. */
+export const hasServiceRole = () => Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);

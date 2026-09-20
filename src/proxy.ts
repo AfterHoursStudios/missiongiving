@@ -9,7 +9,16 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anon) return NextResponse.next(); // unconfigured dev state
+  const path = request.nextUrl.pathname;
+  const isPrivate = path.startsWith("/dashboard") || (path.startsWith("/admin") && path !== "/admin/forbidden");
+  if (!url || !anon) {
+    // No auth backend configured: public pages still render, but private areas fail closed instead of erroring or rendering.
+    if (!isPrivate) return NextResponse.next();
+    const to = request.nextUrl.clone();
+    to.pathname = "/sign-in";
+    to.search = "";
+    return NextResponse.redirect(to);
+  }
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(url, anon, {
@@ -24,9 +33,6 @@ export async function proxy(request: NextRequest) {
   });
 
   const { data } = await supabase.auth.getUser();
-  const path = request.nextUrl.pathname;
-  const isPrivate = path.startsWith("/dashboard") || (path.startsWith("/admin") && path !== "/admin/forbidden");
-
   if (isPrivate && !data.user) {
     const to = request.nextUrl.clone();
     to.pathname = "/sign-in";

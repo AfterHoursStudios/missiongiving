@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { formatMoney } from "@/lib/money";
-import { goalStatus, isPubliclyListed, offlineAdjustmentSchema, projectSchema, projectToRow, sanitizeStory } from "./project-schema";
+import { isPubliclyListed, offlineAdjustmentSchema, projectSchema, projectToRow, sanitizeStory } from "./project-schema";
 import type { AdminState } from "./donor-actions";
 
 export async function saveProject(_: AdminState, form: FormData): Promise<AdminState> {
@@ -83,14 +83,3 @@ export async function adjustOffline(_: AdminState, form: FormData): Promise<Admi
   return { ok: true, message: "Adjustment recorded and audited." };
 }
 
-/** Marks active projects whose confirmed total has reached the goal. Never reverts a status. */
-export async function syncGoalStatuses() {
-  const db = createSupabaseAdminClient();
-  const { data: active } = await db.from("projects").select("id, goal_cents, offline_adjustment_cents, status").eq("status", "active").not("goal_cents", "is", null);
-  for (const p of active ?? []) {
-    const { data } = await db.rpc("project_totals", { p_project_id: p.id });
-    const raised = Number(data?.[0]?.raised_cents ?? 0) + p.offline_adjustment_cents;
-    const next = goalStatus(p.status, raised, p.goal_cents);
-    if (next !== p.status) await db.from("projects").update({ status: next }).eq("id", p.id).eq("status", "active");
-  }
-}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Source_Sans_3 } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { publicEnv } from "@/lib/env";
 
@@ -20,6 +21,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-screen flex flex-col">
         <a href="#main" className="skip-link">Skip to main content</a>
         {children}
+        {/* Cookie-less, privacy-friendly page-view analytics (no personal data). Only active when deployed on Vercel. */}
+        <Analytics />
       </body>
     </html>
   );

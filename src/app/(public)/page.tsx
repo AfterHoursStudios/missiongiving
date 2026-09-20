@@ -62,9 +62,27 @@ export default async function HomePage() {
         <p className="mt-2 text-ink-soft">Figures below are placeholders until Ultimate Mission enters approved values.</p>
         <dl className="mt-8 grid gap-8 sm:grid-cols-3">
           {impact.map((s, i) => (
-            <div key={i}><dd className="font-display text-5xl text-brand-700">{s.value}</dd><dt className="mt-1 text-ink-soft">{s.label}</dt></div>
+            <div key={i} className="flex flex-col-reverse"><dt className="mt-1 text-ink-soft">{s.label}</dt><dd className="font-display text-5xl text-brand-700">{s.value}</dd></div>
           ))}
         </dl>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-[var(--space-section)]" aria-labelledby="use">
+        <h2 id="use" className="text-3xl font-semibold">How your gift is used</h2>
+        <p role="note" className="mt-2 max-w-prose rounded-md bg-paper-2 p-3 text-sm text-ink-soft">Placeholder: Ultimate Mission will add approved wording and figures here. Nothing on this page states how any amount is spent until they do.</p>
+        <p className="mt-4 max-w-prose text-lg">Gifts to the <strong>General Fund</strong> support Ultimate Mission where it is needed most. Gifts to a <strong>project</strong> are tracked as restricted to that project, and each project page shows the amount raised toward its goal.</p>
+      </section>
+
+      <section className="bg-paper-2" aria-labelledby="trust">
+        <div className="mx-auto max-w-6xl px-4 py-[var(--space-section)]">
+          <h2 id="trust" className="text-3xl font-semibold">Trust and transparency</h2>
+          <ul className="mt-6 grid gap-6 sm:grid-cols-2">
+            <li><strong>Secure payments.</strong> Cards and bank accounts are handled by Stripe. Mission Giving never stores card or bank numbers.</li>
+            <li><strong>Clear receipts.</strong> Every confirmed gift gets a numbered receipt, and you can download an annual giving statement.</li>
+            <li><strong>Your choices.</strong> Receipts are always sent, but news and project emails only if you opt in. Unsubscribe in one click.</li>
+            <li><strong>Your control.</strong> Change or cancel a recurring gift any time, download your data, or ask us to delete your account.</li>
+          </ul>
+        </div>
       </section>
 
       <section className="bg-teal-800 text-white">
@@ -73,6 +91,11 @@ export default async function HomePage() {
           <p className="mt-3 max-w-prose text-white/90">Steady gifts let health workers plan ahead. Cancel or change your gift any time from your account.</p>
           <Link href="/donate?frequency=monthly" className="mt-6 inline-block min-h-12 rounded-md bg-white px-7 py-3 font-semibold text-teal-800">Become a monthly donor</Link>
         </div>
+      </section>
+
+      <section className="mx-auto max-w-3xl px-4 pt-[var(--space-section)]" aria-labelledby="stories">
+        <h2 id="stories" className="text-3xl font-semibold">Stories</h2>
+        <p role="note" className="mt-3 rounded-md bg-paper-2 p-3 text-sm text-ink-soft">Placeholder: stories from the field will appear here once Ultimate Mission provides approved, consented text and photos. None are invented.</p>
       </section>
 
       <section className="mx-auto max-w-3xl px-4 py-[var(--space-section)]" aria-labelledby="faq">

@@ -2,6 +2,7 @@ import "server-only";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgSettings } from "@/lib/settings";
 import { projectProgress } from "@/lib/money";
+import { isSupabaseConfigured } from "@/lib/env";
 
 const LIST_COLS = "id, slug, title, summary, featured_image_url, location, goal_cents, offline_adjustment_cents, start_date, end_date, status, featured";
 
@@ -23,12 +24,14 @@ async function withTotals<T extends { id: string; goal_cents: number | null; off
 
 /** Uses the anonymous-role client, so Row Level Security (not application code) decides what is public. */
 export async function listPublicProjects(): Promise<PublicProject[]> {
+  if (!isSupabaseConfigured) return [];
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.from("projects").select(LIST_COLS).order("featured", { ascending: false }).order("created_at", { ascending: false });
   return (await withTotals(data ?? [])) as unknown as PublicProject[];
 }
 
 export async function getPublicProject(slug: string) {
+  if (!isSupabaseConfigured) return null;
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) return null;
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.from("projects")
