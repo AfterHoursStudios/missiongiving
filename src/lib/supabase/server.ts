@@ -1,6 +1,6 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { publicEnv, serverEnv } from "@/lib/env";
 
@@ -26,7 +26,9 @@ export async function createSupabaseServerClient() {
 }
 
 /** Bypasses RLS. Server-only; never import from client components. */
-export function createSupabaseAdminClient() {
+// Rows are untyped until `supabase gen types` output is added; validate at boundaries.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function createSupabaseAdminClient(): SupabaseClient<any, "public", any> {
   const key = serverEnv().SUPABASE_SERVICE_ROLE_KEY;
   if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
   return createClient(publicEnv.NEXT_PUBLIC_SUPABASE_URL!, key, {
