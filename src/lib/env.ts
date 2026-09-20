@@ -28,5 +28,9 @@ export function serverEnv() {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     INITIAL_ADMIN_EMAIL: process.env.INITIAL_ADMIN_EMAIL,
+    UNSUBSCRIBE_SECRET: process.env.UNSUBSCRIBE_SECRET,
+    CRON_SECRET: process.env.CRON_SECRET,
+    RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
+    EMAIL_BATCH_SIZE: process.env.EMAIL_BATCH_SIZE,
   };
 }

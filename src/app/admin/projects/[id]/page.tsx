@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Edit project" };
 
 export default async function EditProjectPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePermission("projects.manage");
+  const { perms } = await requirePermission("projects.manage");
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();
   const db = createSupabaseAdminClient();
@@ -33,6 +33,8 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
         {formatMoney(pr.raised)} raised{project.goal_cents ? ` of ${formatMoney(project.goal_cents)} (${pr.pct}%)` : ""} · {Number(totals?.[0]?.donor_count ?? 0)} donors
         {project.is_public && ["active", "goal_reached", "completed"].includes(project.status) && <> · <Link className="underline" href={`/projects/${project.slug}`}>View public page</Link></>}
       </p>
+
+      {perms.has("comms.send") && <p className="mt-3"><Link className="font-semibold underline" href={`/admin/campaigns/new?project=${id}`}>Create an announcement for donors</Link> <span className="text-sm text-ink-soft">(starts a draft; you preview and confirm before anything is sent)</span></p>}
 
       <div className="mt-8 max-w-2xl"><ProjectForm project={project} /></div>
 

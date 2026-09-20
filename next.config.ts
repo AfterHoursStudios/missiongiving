@@ -39,7 +39,7 @@ const nextConfig: NextConfig = {
       { source: "/:path*", headers: securityHeaders },
       // Private areas must never be indexed.
       {
-        source: "/(admin|dashboard|sign-in|register|reset-password|receipts|auth)/:path*",
+        source: "/(admin|dashboard|sign-in|register|reset-password|receipts|auth|unsubscribe)/:path*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
       },
     ];

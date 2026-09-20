@@ -2,7 +2,7 @@
 
 Donation-management platform for Ultimate Mission. Next.js 16 (App Router), TypeScript strict, Tailwind 4, Supabase, Stripe, Resend.
 
-> **Status: Phases 1-5 built** (foundation; donations; donor portal; admin portal; financial reporting). Phases 6-7 (communications campaigns, quality/deployment) are not built yet. See the roadmap.
+> **Status: Phases 1-6 built** (foundation; donations; donor portal; admin portal; financial reporting; communications). Phase 7 (e2e/accessibility tests, security review, deployment docs) is not built yet. See the roadmap.
 > **Not yet verified against live Stripe, Supabase or Resend accounts.** Logic is unit-tested with in-memory fakes; run the test-mode steps below before trusting it.
 
 ## Local setup
@@ -17,7 +17,7 @@ Without Supabase variables the public pages render and private routes are not ga
 
 ### Supabase
 1. Create a project. Copy URL, anon key and service-role key into `.env.local` (the service-role key is server-only).
-2. Apply migrations in order (SQL editor, or `supabase db push` with the CLI): `0001_schema.sql`, `0002_rls_and_rbac.sql`, `0003_donation_flow.sql`, `0004_donor_portal.sql`, `0005_admin_crm.sql`, `0006_admin_remainder.sql`, `0007_financial_reporting.sql`, then `supabase/seed.sql` (fake/placeholder data only).
+2. Apply migrations in order (SQL editor, or `supabase db push` with the CLI): `0001_schema.sql`, `0002_rls_and_rbac.sql`, `0003_donation_flow.sql`, `0004_donor_portal.sql`, `0005_admin_crm.sql`, `0006_admin_remainder.sql`, `0007_financial_reporting.sql`, `0008_communications.sql`, then `supabase/seed.sql` (fake/placeholder data only).
 3. Auth > URL configuration: add `<APP_URL>/auth/callback` as a redirect URL. Enable email confirmation.
 4. Initial administrator (no hardcoded password): set `INITIAL_ADMIN_EMAIL`, run `npm run admin:bootstrap`. Supabase emails an invitation; the person sets their own password. It refuses to run if a Super Admin already exists.
 
@@ -31,11 +31,14 @@ Without Supabase variables the public pages render and private routes are not ga
 ### Stripe Customer Portal (payment-method updates)
 Dashboard > Settings > Billing > Customer portal: activate it and allow **payment method updates** (cancellation there is optional; cancellations are also reconciled by webhook). Without this, "Update payment method" shows a friendly "not available" message.
 
-### Resend
-Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them emails are skipped (one log line, no recipient or content).
+### Resend and campaigns
+- Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them transactional emails are skipped (one log line, no recipient or content) and **campaigns refuse to send**.
+- Campaigns also need `UNSUBSCRIBE_SECRET` (16+ random characters; signs unsubscribe links; **do not rotate casually**, old links would stop working), `CRON_SECRET` (16+ random characters), and the organization's **mailing address** in Settings (required in the footer). `EMAIL_BATCH_SIZE` (default 50, max 100) sets recipients per provider request.
+- Resend dashboard > Webhooks: add `<APP_URL>/api/webhooks/resend` for `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.opened`, `email.clicked`, `email.failed`; put its signing secret in `RESEND_WEBHOOK_SECRET`. Enable open/click tracking on the sending domain if you want those counts.
+- Sending runs from `GET /api/cron/send-campaigns` with `Authorization: Bearer $CRON_SECRET`. `vercel.json` schedules it every 5 minutes (Vercel Cron runs sub-daily schedules only on a paid plan; on the free plan, change the schedule to daily or call the endpoint from another scheduler).
 
 ## Scripts
-`npm run lint` · `npm run typecheck` · `npm test` (121 unit tests) · `npm run build` · `npm run test:e2e` (suite added in Phase 7)
+`npm run lint` · `npm run typecheck` · `npm test` (141 unit tests) · `npm run build` · `npm run test:e2e` (suite added in Phase 7)
 
 ## Donor portal (Phase 3)
 `/dashboard` overview, `/dashboard/contributions` (search, status/frequency/year filters, pagination, receipt download), `/dashboard/recurring` (change amount, cancel with confirmation, update payment method via Stripe portal, ended gifts kept), `/dashboard/statements` (PDF per calendar year), `/dashboard/profile` (contact, email preferences, password, data export, deletion request).
@@ -66,6 +69,14 @@ Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them 
 - **Refunds**: on a donor's page, for staff with `refunds.issue`. The refund is submitted to Stripe with an idempotency key; the gift's totals and status change only when the signed `charge.refunded` webhook arrives.
 - **Reconciliation** (`/admin/reconciliation`): payments pending too long (card > 1 h, ACH > 7 days), recent failures, disputes, settled gifts with no final receipt, refund/status inconsistencies, incomplete or past-due recurring gifts, and failed/stalled webhook events with a safe **Retry** (re-fetches the event from Stripe and runs the same idempotent processor).
 
+## Communications (Phase 6)
+Workflow at `/admin/campaigns`: (1) choose audience, (2) write subject and message, (3) see the recipient count and why others were excluded, (4) preview the email, (5) send a test to yourself, (6) send now or schedule (organization time zone), (7) final confirmation: type **SEND**, and the count you reviewed must still match a fresh recount. Who authorized it is recorded, and the send is audited. A project page has a "Create an announcement" shortcut that pre-fills a draft; nothing sends without steps 3-7.
+- **Consent is enforced twice**: when the audience is built and again right before each batch, against current data. Announcements need the donor's "news" consent; project updates need "project updates" consent. No preference row means *not* opted in. Suppressed addresses, do-not-contact donors and anyone who unsubscribed in the meantime are skipped automatically. Receipts and payment notices never go through this path.
+- **Audience filters** (AND across filters, OR within a list): monthly and/or yearly donors, previous donors of chosen projects, not given in N months (only people who have given), lifetime-giving range, tags, exact region.
+- **Unsubscribe**: every email has a footer link (confirmation page) and RFC 8058 one-click headers (`/api/unsubscribe`). Tokens are HMAC-signed and never expire. Unsubscribing turns off news and project emails only.
+- **Suppression and bounces**: the signature-verified Resend webhook (idempotent by webhook id) records delivered/bounced/complained/opened/clicked; permanent bounces and spam complaints add the address to `email_suppressions` and mark the donor suppressed.
+- **Throttling**: batches of up to 100 via Resend's batch API, at most 4 batches per cron run with a pause between requests; provider rate-limit responses put recipients back in the queue. Stalled rows are re-queued after 10 minutes.
+
 ## Architecture
 - `src/proxy.ts` refreshes the Supabase session and redirects unauthenticated users away from `/dashboard` and `/admin`. It is **not** the security boundary: pages, actions and handlers call `requirePermission()` (`src/lib/auth/session.ts`), and Postgres RLS enforces access again.
 - `supabase/migrations/0001` is the full schema. Money is integer cents plus a currency code. Deletes on donations, recurring gifts and expenses are blocked by trigger; `audit_logs` is append-only by trigger.
@@ -91,6 +102,8 @@ Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them 
 - Admin: the home-page impact statistics, testimonials and About text are still placeholders in code; they are not yet editable in the admin. The footer does not yet read the social links/contact email from settings.
 - Reports: refunds use the original gift's date; no per-refund ledger. Fee classification, restriction release and accrual accounting are simplified; this is not GAAP/audited reporting. The dashboard and reports load up to 100,000 rows into memory.
 - Reports: Stripe fees are recorded only when a payment succeeds; gifts from before the fee lookup existed, and offline gifts, have $0 fees.
+- Communications: the send engine talks to Resend and Supabase and is **not covered by automated tests** (audience, consent, tokens, signatures, scheduling and rendering are). A crash after Resend accepts a batch but before rows are updated could resend that batch once. Audience data loads in memory (up to 20,000 donors). Templates for the separate transactional emails still use plain sanitized HTML; only campaigns use the React Email layout.
+- Communications: open tracking is approximate. Region targeting is exact-match text on the donor's state/region; use only where lawful.
 - Admin: data-retention is a recorded setting only; nothing purges data automatically.
 - Admin: merge from the UI supports two records at a time; the dashboard loads up to 50,000 donations in memory (move to SQL aggregates at larger scale).
 - Admin: staff sign-ins via magic link are not audited (only password sign-ins). Tier date fields are interpreted as UTC.
@@ -103,4 +116,4 @@ Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them 
 - RLS policies and the Supabase repository have not been run against a live database; add integration tests in Phase 7.
 
 ## Roadmap
-1 done · 2 done (Stripe, webhooks, receipts) · 3 done (donor portal) · 4 done (admin portal) · 5 done (financial reports) · 6 Communications · 7 Tests, a11y, security review, deploy docs.
+1 done · 2 done (Stripe, webhooks, receipts) · 3 done (donor portal) · 4 done (admin portal) · 5 done (financial reports) · 6 done (communications) · 7 Tests, a11y, security review, deploy docs.
