@@ -6,6 +6,8 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { publicEnv } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export type FormState = { error?: string; message?: string } | undefined;
 
@@ -32,7 +34,17 @@ async function clientKey(scope: string, email?: string) {
 
 /** Only allow same-site relative redirects (prevents open redirects). */
 function safeNext(next: unknown, fallback = "/dashboard") {
-  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : fallback;
+  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : fallback;
+}
+
+/** Records staff sign-ins. A logging failure must never block a legitimate login. */
+async function auditStaffLogin(userId: string) {
+  try {
+    const { data } = await createSupabaseAdminClient().from("staff_profiles").select("active").eq("user_id", userId).maybeSingle();
+    if (data?.active) await audit(userId, "staff.login", "staff", userId);
+  } catch {
+    console.error("[auth] staff login audit failed");
+  }
 }
 
 export async function registerAction(_: FormState, form: FormData): Promise<FormState> {
@@ -66,8 +78,9 @@ export async function signInAction(_: FormState, form: FormData): Promise<FormSt
   if (!email || !pw) return { error: "Enter your email and password." };
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password: pw });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password: pw });
   if (error) return { error: "Email or password is incorrect, or your email is not yet verified." };
+  await auditStaffLogin(data.user.id);
   redirect(next);
 }
 

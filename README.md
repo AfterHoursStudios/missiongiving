@@ -2,7 +2,7 @@
 
 Donation-management platform for Ultimate Mission. Next.js 16 (App Router), TypeScript strict, Tailwind 4, Supabase, Stripe, Resend.
 
-> **Status: Phases 1-3 built** (foundation; donation flow, Stripe webhooks, receipts, emails; donor portal). Phases 4-7 are not built yet; see the roadmap.
+> **Status: Phases 1-3 built; Phase 4 partly built** (admin dashboard, donor CRM, tier management). Still to do: projects, message templates, staff/role management, settings page, deletion-request review, then Phases 5-7. See the roadmap.
 > **Not yet verified against live Stripe, Supabase or Resend accounts.** Logic is unit-tested with in-memory fakes; run the test-mode steps below before trusting it.
 
 ## Local setup
@@ -17,7 +17,7 @@ Without Supabase variables the public pages render and private routes are not ga
 
 ### Supabase
 1. Create a project. Copy URL, anon key and service-role key into `.env.local` (the service-role key is server-only).
-2. Apply migrations in order (SQL editor, or `supabase db push` with the CLI): `0001_schema.sql`, `0002_rls_and_rbac.sql`, `0003_donation_flow.sql`, `0004_donor_portal.sql`, then `supabase/seed.sql` (fake/placeholder data only).
+2. Apply migrations in order (SQL editor, or `supabase db push` with the CLI): `0001_schema.sql`, `0002_rls_and_rbac.sql`, `0003_donation_flow.sql`, `0004_donor_portal.sql`, `0005_admin_crm.sql`, then `supabase/seed.sql` (fake/placeholder data only).
 3. Auth > URL configuration: add `<APP_URL>/auth/callback` as a redirect URL. Enable email confirmation.
 4. Initial administrator (no hardcoded password): set `INITIAL_ADMIN_EMAIL`, run `npm run admin:bootstrap`. Supabase emails an invitation; the person sets their own password. It refuses to run if a Super Admin already exists.
 
@@ -35,7 +35,7 @@ Dashboard > Settings > Billing > Customer portal: activate it and allow **paymen
 Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them emails are skipped (one log line, no recipient or content).
 
 ## Scripts
-`npm run lint` · `npm run typecheck` · `npm test` (46 unit tests) · `npm run build` · `npm run test:e2e` (suite added in Phase 7)
+`npm run lint` · `npm run typecheck` · `npm test` (65 unit tests) · `npm run build` · `npm run test:e2e` (suite added in Phase 7)
 
 ## Donor portal (Phase 3)
 `/dashboard` overview, `/dashboard/contributions` (search, status/frequency/year filters, pagination, receipt download), `/dashboard/recurring` (change amount, cancel with confirmation, update payment method via Stripe portal, ended gifts kept), `/dashboard/statements` (PDF per calendar year), `/dashboard/profile` (contact, email preferences, password, data export, deletion request).
@@ -44,6 +44,13 @@ Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them 
 - Cancel keeps all history; only the recurring record's status changes. Changing the amount applies from the next charge (no proration) and can be disabled with the `recurring_amount_change_enabled` setting.
 - Account deletion is a **request** reviewed by staff (financial records must be retained; approval should anonymize personal fields). The staff review screen arrives in Phase 4.
 - `supabase/tests/rls_isolation.sql` checks donor isolation and protected columns. **It has not been run yet**; run it against a scratch Supabase project.
+
+## Admin portal (Phase 4, partial)
+- **Dashboard** (`/admin`, `reports.view`): KPIs with previous-period comparison, recent gifts, upcoming project deadlines, and nine charts (revenue, by fund/project, one-time vs recurring, tiers, payment method, new vs returning, retention, goal progress, revenue vs expenses). Each chart has date-range controls, an accessible text summary, a "View as table" data table, and a CSV download. "Print or save as PDF" uses the browser; formatted PDF reports come in Phase 5. Metric logic is pure and unit-tested (`src/lib/admin/metrics.ts`).
+- **Donor CRM** (`/admin/donors`): search, filters (status, tag, recurring, lifetime minimum), sortable columns, pagination, detail page (history, recurring, preferences, tags, internal notes, nonfinancial corrections, resend receipt), duplicate detection (`/admin/donors/duplicates`; exact email/phone or name+postal, never name alone) and an **atomic, audited merge** (`merge_donors()` SQL function: nothing is deleted, opt-outs win). CSV export needs the separate `donors.export` permission, is rate-limited, and is audited.
+- **Tiers** (`/admin/tiers`): create, edit, reorder, activate/deactivate/archive (never deleted). Validation in `tier-schema.ts`.
+- CSV exports neutralize spreadsheet formulas (`src/lib/csv.ts`).
+- Admin data access uses the service-role client **after** `requirePermission()`; dashboards select only non-personal columns so Read-Only Reporters see aggregates, not donor identities.
 
 ## Architecture
 - `src/proxy.ts` refreshes the Supabase session and redirects unauthenticated users away from `/dashboard` and `/admin`. It is **not** the security boundary: pages, actions and handlers call `requirePermission()` (`src/lib/auth/session.ts`), and Postgres RLS enforces access again.
@@ -66,6 +73,9 @@ Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them 
 - Billing address collection, refunds UI and the admin reconciliation view are not built yet (Phases 3-5).
 - Magic-link sign-in exists, but donor MFA and 'account claim' for guests do not.
 - Cancel writes status locally as well as via webhook; in a rare race a donor could receive two cancellation emails.
+- Admin: no project, message-template, staff/role, settings or audit-log screens yet; account-deletion requests have no staff review screen yet (Phase 4 remainder).
+- Admin: merge from the UI supports two records at a time; the dashboard loads up to 50,000 donations in memory (move to SQL aggregates at larger scale).
+- Admin: staff sign-ins via magic link are not audited (only password sign-ins). Tier date fields are interpreted as UTC.
 - Public project pages don't exist yet, so the destination step only lists projects created directly in the database.
 - Rate limiting is in-memory per instance (`src/lib/rate-limit.ts`). Use a shared store or Vercel Firewall in production.
 - Registration uses a honeypot only; add Turnstile/hCaptcha.
@@ -75,4 +85,4 @@ Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them 
 - RLS policies and the Supabase repository have not been run against a live database; add integration tests in Phase 7.
 
 ## Roadmap
-1 done · 2 done (Stripe, webhooks, receipts) · 3 done (donor portal) · 4 Admin portal · 5 Financial reports · 6 Communications · 7 Tests, a11y, security review, deploy docs.
+1 done · 2 done (Stripe, webhooks, receipts) · 3 done (donor portal) · 4 Admin portal (dashboard, CRM, tiers done; projects, templates, staff, settings pending) · 5 Financial reports · 6 Communications · 7 Tests, a11y, security review, deploy docs.
