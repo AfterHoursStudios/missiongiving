@@ -40,7 +40,7 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
   });
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [session, setSession] = useState<{ clientSecret: string; returnUrl: string } | null>(null);
+  const [session, setSession] = useState<{ clientSecret: string; donationId: string } | null>(null);
   const key = useRef(crypto.randomUUID());
 
   const project = config.projects.find((p) => p.id === projectId) ?? null;
@@ -76,7 +76,7 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
           note: d.note || undefined,
         });
         if (!res.ok) { key.current = crypto.randomUUID(); return setError(res.error); }
-        setSession({ clientSecret: res.clientSecret, returnUrl: res.returnUrl });
+        setSession({ clientSecret: res.clientSecret, donationId: res.donationId });
         setStep(4);
       });
     }
@@ -186,7 +186,7 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
             {formatMoney(amountCents ?? 0)} {FREQ.find((f) => f.id === frequency)?.label.toLowerCase()} to {project?.title ?? "the General Fund"}
           </p>
           <Elements stripe={stripePromise} options={{ clientSecret: session.clientSecret, appearance: { theme: "stripe" } }}>
-            <PayForm returnUrl={session.returnUrl} />
+            <PayForm donationId={session.donationId} />
           </Elements>
         </div>
       )}
@@ -206,7 +206,7 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
   );
 }
 
-function PayForm({ returnUrl }: { returnUrl: string }) {
+function PayForm({ donationId }: { donationId: string }) {
   const stripe = useStripe();
   const elements = useElements();
   const [method, setMethod] = useState<string>("card");
@@ -220,8 +220,9 @@ function PayForm({ returnUrl }: { returnUrl: string }) {
     if (!stripe || !elements || busy) return; // blocks double clicks
     if (isAch && !authorized) return setError("Please confirm the bank payment authorization.");
     setBusy(true); setError(null);
+    // Redirect back to whichever site the donor is on (not a configured URL), so a wrong NEXT_PUBLIC_APP_URL cannot send them elsewhere.
     // The result is only shown to the donor; payment status is set by Stripe webhooks, never by this redirect.
-    const { error } = await elements.submit().then(() => stripe.confirmPayment({ elements, confirmParams: { return_url: returnUrl } }));
+    const { error } = await elements.submit().then(() => stripe.confirmPayment({ elements, confirmParams: { return_url: `${window.location.origin}/donate/confirmation?donation=${donationId}` } }));
     if (error) { setError(error.message ?? "Payment could not be completed."); setBusy(false); }
   }
 

@@ -5,11 +5,10 @@ import { requireUser } from "@/lib/auth/session";
 import { getOrgSettings, getSetting, setSetting } from "@/lib/settings";
 import { getDonationProductId, getStripe, isStripeConfigured } from "@/lib/stripe/client";
 import { rateLimit } from "@/lib/rate-limit";
-import { publicEnv } from "@/lib/env";
 import { checkoutSchema, resolveAmount, type TierRow } from "./checkout";
 
 export type CheckoutResult =
-  | { ok: true; donationId: string; clientSecret: string; returnUrl: string }
+  | { ok: true; donationId: string; clientSecret: string }
   | { ok: false; error: string };
 
 const PM_TYPES = ["card", "us_bank_account"] as ("card" | "us_bank_account")[];
@@ -109,7 +108,6 @@ export async function startCheckout(raw: unknown): Promise<CheckoutResult> {
   if (input.dedication)
     await db.from("dedications").insert({ donation_id: donationId, kind: input.dedication.kind, name: input.dedication.name, message: input.dedication.message ?? null });
 
-  const returnUrl = `${publicEnv.NEXT_PUBLIC_APP_URL}/donate/confirmation?donation=${donationId}`;
   const desc = "Donation to Ultimate Mission";
 
   try {
@@ -121,7 +119,7 @@ export async function startCheckout(raw: unknown): Promise<CheckoutResult> {
         metadata: { donation_id: donationId },
       }, { idempotencyKey: `pi-${input.idempotencyKey}` });
       await db.from("donations").update({ stripe_payment_intent_id: pi.id }).eq("id", donationId);
-      return { ok: true, donationId, clientSecret: pi.client_secret!, returnUrl };
+      return { ok: true, donationId, clientSecret: pi.client_secret! };
     }
 
     const productId = await getDonationProductId(
@@ -150,7 +148,7 @@ export async function startCheckout(raw: unknown): Promise<CheckoutResult> {
     await db.from("donations").update({ recurring_id: rec.data.id, stripe_invoice_id: invoice.id }).eq("id", donationId);
     const secret = invoice.confirmation_secret?.client_secret;
     if (!secret) throw new Error("missing client secret");
-    return { ok: true, donationId, clientSecret: secret, returnUrl };
+    return { ok: true, donationId, clientSecret: secret };
   } catch (err) {
     await db.from("donations").update({ status: "failed" }).eq("id", donationId);
     console.error("[checkout] stripe error", err instanceof Error ? err.name : "unknown");
