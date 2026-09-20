@@ -26,7 +26,8 @@ export async function saveProject(_: AdminState, form: FormData): Promise<AdminS
     if (error) return { error: error.code === "23505" ? "That URL slug is already used by another project." : "Could not save the project." };
     if (!isPubliclyListed(before) && isPubliclyListed(row)) await audit(user.id, "project.publish", "project", id, { status: row.status, slug: row.slug });
     revalidatePath("/admin/projects"); revalidatePath("/projects"); revalidatePath(`/projects/${row.slug}`);
-    return { ok: true, message: "Project saved." };
+    const live = ["active", "goal_reached", "completed"].includes(row.status);
+    return { ok: true, message: live && !row.is_public ? "Saved. Heads up: this project is live but NOT public, so visitors cannot see it or donate to it. Tick Public and save again." : "Project saved." };
   }
 
   // Each project gets its own restricted fund so restricted-revenue reporting works from day one.

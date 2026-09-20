@@ -34,6 +34,10 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
         {project.is_public && ["active", "goal_reached", "completed"].includes(project.status) && <> · <Link className="underline" href={`/projects/${project.slug}`}>View public page</Link></>}
       </p>
 
+      {["active", "goal_reached", "completed"].includes(project.status) && !project.is_public && (
+        <p role="alert" className="mt-4 rounded-md bg-warning-bg p-3 text-warning"><strong>Not visible to the public.</strong> This project is {project.status.replace("_", " ")} but the Public box is unchecked, so it does not appear on the website or in the donate flow. Tick <em>Public</em> below and save.</p>
+      )}
+
       {perms.has("comms.send") && <p className="mt-3"><Link className="font-semibold underline" href={`/admin/campaigns/new?project=${id}`}>Create an announcement for donors</Link> <span className="text-sm text-ink-soft">(starts a draft; you preview and confirm before anything is sent)</span></p>}
 
       <div className="mt-8 max-w-2xl"><ProjectForm project={project} /></div>

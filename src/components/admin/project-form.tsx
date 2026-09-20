@@ -12,7 +12,8 @@ const area = "mt-1.5 w-full rounded-md border border-ink-soft bg-white px-3 py-2
 const dateCls = "mt-1.5 min-h-12 w-full rounded-md border border-ink-soft bg-white px-2";
 
 export function ProjectForm({ project }: { project?: ProjectValues }) {
-  const p = project ?? { status: "draft", allow_custom_amount: true, is_public: false };
+  // New projects default to Public: visitors still see nothing until the status is Active, Goal reached or Completed.
+  const p = project ?? { status: "draft", allow_custom_amount: true, is_public: true };
   return (
     <SimpleForm action={saveProject} submit={project?.id ? "Save project" : "Create project"}>
       {project?.id && <input type="hidden" name="id" value={project.id} />}
@@ -35,7 +36,7 @@ export function ProjectForm({ project }: { project?: ProjectValues }) {
       </div>
       <div><label htmlFor="status" className="block font-semibold">Status</label>
         <select id="status" name="status" defaultValue={p.status} className={dateCls}>{PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></div>
-      <CheckInput label="Public: show on the website (also requires Active, Goal reached or Completed status)" name="is_public" defaultChecked={p.is_public} />
+      <CheckInput label="Public: show on the website and in the donate flow (also requires Active, Goal reached or Completed status)" name="is_public" defaultChecked={p.is_public} />
       <CheckInput label="Featured on the home page" name="featured" defaultChecked={p.featured} />
       <CheckInput label="Allow custom donation amounts" name="allow_custom_amount" defaultChecked={p.allow_custom_amount} />
       <TextInput label="SEO title (max 70)" name="seo_title" defaultValue={p.seo_title} />
