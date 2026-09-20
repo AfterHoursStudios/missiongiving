@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/env";
+import { getSetting } from "@/lib/settings";
+import { HOME_ALT_KEY, HOME_IMAGE_KEY } from "@/lib/admin/home-image-keys";
 import { listPublicProjects, type PublicProject } from "@/lib/projects/public";
 import { ProjectCard } from "@/components/site/project-card";
 
@@ -24,8 +26,17 @@ const faqs = [
   ["Will I get a receipt?", "Yes. Receipts appear in your account once a payment is confirmed."],
 ];
 
+async function heroPhoto(): Promise<{ url: string; alt: string } | null> {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const url = (await getSetting(HOME_IMAGE_KEY)) as string | null;
+    return url ? { url, alt: ((await getSetting(HOME_ALT_KEY)) as string | null) || "" } : null;
+  } catch { return null; }
+}
+
 export default async function HomePage() {
   const featured = await featuredProjects();
+  const hero = await heroPhoto();
   return (
     <>
       <section className="bg-paper-2">
@@ -42,11 +53,16 @@ export default async function HomePage() {
               <Link href="/projects" className="min-h-12 rounded-md border-2 border-teal-800 px-7 py-3 font-semibold text-teal-800 hover:bg-white">See projects</Link>
             </div>
           </div>
-          {/* PLACEHOLDER: replace with approved Ultimate Mission photography (admin-managed asset) */}
-          <div role="img" aria-label="Photo placeholder: community health worker with a mother and infant"
-            className="flex aspect-[4/3] items-center justify-center border-2 border-dashed border-ink-soft text-center text-ink-soft">
-            Approved photo goes here
-          </div>
+          {hero ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={hero.url} alt={hero.alt} className="aspect-[4/3] w-full object-cover" fetchPriority="high" />
+          ) : (
+            // Placeholder until a photo is uploaded in Admin > Settings > Home page photo.
+            <div role="img" aria-label="Photo placeholder: community health worker with a mother and infant"
+              className="flex aspect-[4/3] items-center justify-center border-2 border-dashed border-ink-soft text-center text-ink-soft">
+              Approved photo goes here
+            </div>
+          )}
         </div>
       </section>
 

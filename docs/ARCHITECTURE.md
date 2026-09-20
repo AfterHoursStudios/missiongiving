@@ -98,7 +98,7 @@ Workflow at `/admin/campaigns`: (1) choose audience, (2) write subject and messa
 - Billing address collection, refunds UI and the admin reconciliation view are not built yet (Phases 3-5).
 - Magic-link sign-in exists, but donor MFA and 'account claim' for guests do not.
 - Cancel writes status locally as well as via webhook; in a rare race a donor could receive two cancellation emails.
-- Admin: project images are uploaded from the computer (re-encoded to WebP, metadata stripped, public `project-images` bucket). Donation tier images are still https URLs. Story and template editors are HTML textareas with sanitization, not a WYSIWYG editor.
+- Admin: project images are uploaded from the computer (re-encoded to WebP, metadata stripped, public `project-images` bucket). The home page hero photo is uploaded in Admin > Settings (alt text required). Donation tier images are still https URLs. Story and template editors are HTML textareas with sanitization, not a WYSIWYG editor.
 - Admin: the home-page impact statistics, testimonials and About text are still placeholders in code; they are not yet editable in the admin. The footer does not yet read the social links/contact email from settings.
 - Reports: refunds use the original gift's date; no per-refund ledger. Fee classification, restriction release and accrual accounting are simplified; this is not GAAP/audited reporting. The dashboard and reports load up to 100,000 rows into memory.
 - Reports: Stripe fees are recorded only when a payment succeeds; gifts from before the fee lookup existed, and offline gifts, have $0 fees.

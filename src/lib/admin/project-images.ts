@@ -17,10 +17,10 @@ async function ensureBucket(db: Db) {
   await db.storage.createBucket(IMAGE_BUCKET, { public: true, fileSizeLimit: 5 * 1024 * 1024, allowedMimeTypes: ["image/webp"] });
 }
 
-async function uploadOne(db: Db, file: File): Promise<{ url: string } | { error: string }> {
+export async function uploadImageFile(db: Db, file: File, folder = "projects"): Promise<{ url: string } | { error: string }> {
   const processed = await processImage(new Uint8Array(await file.arrayBuffer()));
   if (!processed.ok) return { error: `${file.name || "Image"}: ${processed.error}` };
-  const path = `projects/${randomUUID()}.webp`; // server-generated name; the original filename is never used
+  const path = `${folder}/${randomUUID()}.webp`; // server-generated name; the original filename is never used
   const put = () => db.storage.from(IMAGE_BUCKET).upload(path, processed.data, { contentType: "image/webp", upsert: false });
   let { error } = await put();
   if (error && /bucket.*not found/i.test(error.message)) { await ensureBucket(db); ({ error } = await put()); }
@@ -47,7 +47,7 @@ export async function applyImageChanges(db: Db, form: FormData, existing: Projec
 
   for (const [field, key, removeFlag] of [[featuredFile, "featured", "remove_featured"], [shareFile, "share", "remove_share"]] as const) {
     if (isFile(field)) {
-      const r = await uploadOne(db, field);
+      const r = await uploadImageFile(db, field);
       if ("error" in r) return { error: r.error };
       if (images[key]) toDeleteUrls.push(images[key]!);
       images[key] = r.url;
@@ -57,7 +57,7 @@ export async function applyImageChanges(db: Db, form: FormData, existing: Projec
     }
   }
   for (const file of galleryFiles) {
-    const r = await uploadOne(db, file);
+    const r = await uploadImageFile(db, file);
     if ("error" in r) return { error: r.error };
     images.gallery.push(r.url);
   }
