@@ -10,13 +10,13 @@ export function ProgressBar({ pct, label }: { pct: number; label: string }) {
   );
 }
 
-export function ProjectCard({ p, fullSummary = false }: { p: PublicProject; fullSummary?: boolean }) {
+export function ProjectCard({ p, fullSummary = false, fitImage = false }: { p: PublicProject; fullSummary?: boolean; fitImage?: boolean }) {
   const done = p.status === "completed";
   return (
     <article className="flex flex-col">
       {p.featured_image_url
         // eslint-disable-next-line @next/next/no-img-element
-        ? <img src={p.featured_image_url} alt="" className="aspect-[4/3] w-full object-cover" loading="lazy" />
+        ? <img src={p.featured_image_url} alt="" className={fitImage ? "h-auto w-full" : "aspect-[4/3] w-full object-cover"} loading="lazy" />
         : <div className="flex aspect-[4/3] items-center justify-center border-2 border-dashed border-ink-soft text-ink-soft">Project photo placeholder</div>}
       <h3 className="mt-4 text-2xl font-semibold"><Link href={`/projects/${p.slug}`} className="hover:underline">{p.title}</Link></h3>
       {p.location && <p className="text-sm text-ink-soft">{p.location}</p>}

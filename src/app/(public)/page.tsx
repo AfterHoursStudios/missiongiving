@@ -70,7 +70,7 @@ export default async function HomePage() {
       {featured.length > 0 && (
         <section className="mx-auto max-w-6xl px-4 pt-[var(--space-section)]" aria-labelledby="featured">
           <h2 id="featured" className="text-3xl font-semibold">Featured projects</h2>
-          <div className="mt-6 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">{featured.map((p) => <ProjectCard key={p.id} p={p} fullSummary />)}</div>
+          <div className="mt-6 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">{featured.map((p) => <ProjectCard key={p.id} p={p} fullSummary fitImage />)}</div>
         </section>
       )}
 
