@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { moveTier, setTierStatus } from "@/lib/admin/tier-actions";
+import { moveTier, setAllTierFrequencies, setTierStatus } from "@/lib/admin/tier-actions";
+import { CheckInput, SimpleForm } from "@/components/donor/forms";
 import { formatMoney } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,16 @@ export default async function TiersPage({ searchParams }: { searchParams: Promis
       </div>
       <p className="mt-2 max-w-prose text-ink-soft">Tiers appear on the donate page in this order. Tiers are archived, never deleted, because past gifts refer to them.</p>
       <p className="mt-2"><Link className="underline" href={showArchived ? "/admin/tiers" : "/admin/tiers?archived=1"}>{showArchived ? "Hide archived" : "Show archived"}</Link></p>
+
+      <section aria-labelledby="freq" className="mt-8 max-w-xl border-l-4 border-teal-600 pl-4">
+        <h2 id="freq" className="text-xl font-semibold">Offer tiers for these frequencies (all tiers)</h2>
+        <p className="text-sm text-ink-soft">For example, tick only <strong>Monthly</strong> to show the preset amounts to monthly donors only. One-time and yearly donors then use the custom amount box.</p>
+        <div className="mt-3"><SimpleForm action={setAllTierFrequencies} submit="Apply to all tiers">
+          <CheckInput label="One-time gifts" name="allow_one_time" defaultChecked={rows.some((t) => t.allow_one_time)} />
+          <CheckInput label="Monthly gifts" name="allow_monthly" defaultChecked={rows.some((t) => t.allow_monthly)} />
+          <CheckInput label="Yearly gifts" name="allow_yearly" defaultChecked={rows.some((t) => t.allow_yearly)} />
+        </SimpleForm></div>
+      </section>
 
       {rows.length === 0 ? <p className="mt-8 border-y border-line py-10 text-center text-ink-soft">No tiers.</p> : (
         <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[44rem] text-left">

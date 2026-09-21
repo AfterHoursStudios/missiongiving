@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
+import { getOrgSettings } from "@/lib/settings";
 import { tierSchema, tierToRow } from "./tier-schema";
 import type { AdminState } from "./donor-actions";
 
@@ -63,4 +64,28 @@ export async function moveTier(form: FormData) {
   await Promise.all(ids.map((id, n) => db.from("donation_tiers").update({ display_order: n + 1 }).eq("id", id)));
   await audit(user.id, "tier.change", "donation_tier", p.data.id, { op: "reorder", dir: p.data.dir });
   revalidatePath("/admin/tiers");
+}
+
+/**
+ * Sets which frequencies EVERY active/inactive tier is offered for (archived tiers are left alone). Refuses when custom amounts are
+ * turned off and a frequency would end up with no amount options at all, which would leave donors unable to give that way.
+ */
+export async function setAllTierFrequencies(_: AdminState, form: FormData): Promise<AdminState> {
+  const { user } = await requirePermission("tiers.manage");
+  const flags = {
+    allow_one_time: form.get("allow_one_time") === "on",
+    allow_monthly: form.get("allow_monthly") === "on",
+    allow_yearly: form.get("allow_yearly") === "on",
+  };
+  if (!flags.allow_one_time && !flags.allow_monthly && !flags.allow_yearly) return { error: "Choose at least one frequency." };
+  const settings = await getOrgSettings();
+  if (!settings.custom_amount_enabled) {
+    const missing = [!flags.allow_one_time && "one-time", !flags.allow_monthly && "monthly", !flags.allow_yearly && "yearly"].filter(Boolean);
+    if (missing.length) return { error: `Custom amounts are turned off in Settings, so donors giving ${missing.join(" or ")} would have no amount to choose. Turn on custom amounts first.` };
+  }
+  const { data, error } = await createSupabaseAdminClient().from("donation_tiers").update(flags).neq("status", "archived").select("id");
+  if (error) return { error: "Could not update the tiers." };
+  await audit(user.id, "tier.change", "donation_tier", undefined, { op: "bulk_frequencies", ...flags, tiers: data?.length ?? 0 });
+  revalidatePath("/admin/tiers"); revalidatePath("/donate");
+  return { ok: true, message: `Updated ${data?.length ?? 0} tier${data?.length === 1 ? "" : "s"}. Frequencies without a preset tier use the custom amount box.` };
 }
