@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { publicEnv, serverEnv } from "@/lib/env";
+import { SESSION_COOKIE_OPTIONS } from "./cookie-options";
 
 /** Per-request client acting as the signed-in user. RLS applies. */
 export async function createSupabaseServerClient() {
@@ -11,6 +12,7 @@ export async function createSupabaseServerClient() {
     publicEnv.NEXT_PUBLIC_SUPABASE_URL!,
     publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: SESSION_COOKIE_OPTIONS,
       cookies: {
         getAll: () => store.getAll(),
         setAll(list) {

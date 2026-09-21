@@ -11,6 +11,7 @@ const items = [
   { href: "/dashboard", label: "Overview" }, { href: "/dashboard/contributions", label: "Contributions" },
   { href: "/dashboard/recurring", label: "Recurring gifts" }, { href: "/dashboard/statements", label: "Statements" },
   { href: "/dashboard/profile", label: "Profile" },
+  { href: "/sponsor", label: "Sponsor a woman" },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
