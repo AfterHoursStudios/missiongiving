@@ -3,6 +3,7 @@ import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatMoney } from "@/lib/money";
+import { sponsoredProjectIds } from "@/lib/sponsor/sponsored";
 
 export const metadata: Metadata = {
   title: "Sponsor a Woman",
@@ -11,15 +12,16 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-dynamic";
 
-interface Woman { id: string; name: string; country: string | null; description: string | null; photo_url: string | null; monthly_amount_cents: number }
+interface Woman { id: string; project_id: string; name: string; country: string | null; description: string | null; photo_url: string | null; monthly_amount_cents: number }
 
 export default async function SponsorPage() {
   let women: Woman[] = [];
   if (isSupabaseConfigured) {
     try {
       const supabase = await createSupabaseServerClient(); // row-level security shows only active sponsorships
-      const { data } = await supabase.from("sponsorships").select("id, name, country, description, photo_url, monthly_amount_cents").eq("status", "active").order("display_order").order("name");
-      women = data ?? [];
+      const { data } = await supabase.from("sponsorships").select("id, project_id, name, country, description, photo_url, monthly_amount_cents").eq("status", "active").order("display_order").order("name");
+      const taken = await sponsoredProjectIds(); // women who already have a monthly sponsor are not shown
+      women = (data ?? []).filter((w) => !taken.has(w.project_id));
     } catch { women = []; }
   }
   return (
@@ -27,7 +29,7 @@ export default async function SponsorPage() {
       <h1 className="text-4xl font-semibold">Sponsor a Woman</h1>
       <p className="mt-3 max-w-prose text-lg text-ink-soft">Choose a woman to support. Give the monthly amount shown, or make a single gift of the same amount.</p>
       {women.length === 0 ? (
-        <p className="mt-10 border-y border-line py-10 text-center text-ink-soft">No sponsorships are open right now. You can still <Link className="underline" href="/donate">give to the General Fund</Link>.</p>
+        <p className="mt-10 border-y border-line py-10 text-center text-ink-soft">Every woman listed here is already sponsored, or none are open right now. Thank you! You can still <Link className="underline" href="/donate">give to the General Fund</Link>.</p>
       ) : (
         <ul className="mt-10 grid gap-12 sm:grid-cols-2 lg:grid-cols-3">
           {women.map((w) => (

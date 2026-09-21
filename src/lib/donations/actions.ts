@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getOrgSettings, getSetting, setSetting } from "@/lib/settings";
 import { getDonationProductId, getStripe, isStripeConfigured } from "@/lib/stripe/client";
 import { rateLimit } from "@/lib/rate-limit";
+import { sponsoredProjectIds } from "@/lib/sponsor/sponsored";
 import { checkoutSchema, resolveAmount, resolveSponsorship, type TierRow } from "./checkout";
 
 export type CheckoutResult =
@@ -44,6 +45,7 @@ export async function startCheckout(raw: unknown): Promise<CheckoutResult> {
     const { data: sp } = await db.from("sponsorships").select("id, status, monthly_amount_cents, project_id").eq("id", input.destination.sponsorshipId).maybeSingle();
     const r = resolveSponsorship(input.frequency, sp);
     if (!r.ok) return r;
+    if (input.frequency === "monthly" && (await sponsoredProjectIds()).has(sp!.project_id)) return { ok: false, error: "This woman already has a monthly sponsor. Please choose another woman." };
     const { data: backing } = await db.from("projects").select("id, fund_id").eq("id", sp!.project_id).single();
     if (!backing) return { ok: false, error: "This sponsorship is not available." };
     projectId = backing.id; fundId = backing.fund_id; sponsorAmount = r;
