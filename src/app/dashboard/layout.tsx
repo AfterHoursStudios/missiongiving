@@ -3,13 +3,15 @@ import type { Metadata } from "next";
 import { getStaffPermissions, requireUser } from "@/lib/auth/session";
 import { signOutAction } from "@/lib/auth/actions";
 import { Logo } from "@/components/site/logo";
+import { SideNav } from "@/components/site/side-nav";
 
 export const metadata: Metadata = { title: { default: "Your account", template: "%s | Your account" }, robots: { index: false, follow: false } };
 
-const links = [
-  ["/dashboard", "Overview"], ["/dashboard/contributions", "Contributions"], ["/dashboard/recurring", "Recurring gifts"],
-  ["/dashboard/statements", "Statements"], ["/dashboard/profile", "Profile"],
-] as const;
+const items = [
+  { href: "/dashboard", label: "Overview" }, { href: "/dashboard/contributions", label: "Contributions" },
+  { href: "/dashboard/recurring", label: "Recurring gifts" }, { href: "/dashboard/statements", label: "Statements" },
+  { href: "/dashboard/profile", label: "Profile" },
+];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -17,7 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <>
       <header className="border-b border-line no-print">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <Logo />
           <div className="flex items-center gap-3">
             {isStaff && <Link href="/admin" className="min-h-11 px-3 py-2 font-semibold underline">Admin</Link>}
@@ -25,15 +27,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <form action={signOutAction}><button className="min-h-11 px-3 font-semibold underline">Sign out</button></form>
           </div>
         </div>
-        <nav aria-label="Account" className="mx-auto max-w-5xl overflow-x-auto px-4">
-          <ul className="flex gap-6 whitespace-nowrap">
-            {links.map(([href, label]) => (
-              <li key={href}><Link href={href} className="inline-block min-h-11 py-2.5 font-medium hover:underline">{label}</Link></li>
-            ))}
-          </ul>
-        </nav>
       </header>
-      <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:grid md:grid-cols-[13rem_minmax(0,1fr)] md:gap-8">
+        <SideNav items={items} label="Account" rootHref="/dashboard" />
+        <main id="main" className="min-w-0 md:col-start-2">{children}</main>
+      </div>
     </>
   );
 }
