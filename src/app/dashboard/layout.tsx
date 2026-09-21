@@ -8,10 +8,10 @@ import { SideNav } from "@/components/site/side-nav";
 export const metadata: Metadata = { title: { default: "Your account", template: "%s | Your account" }, robots: { index: false, follow: false } };
 
 const items = [
-  { href: "/dashboard", label: "Overview" }, { href: "/dashboard/contributions", label: "Contributions" },
+  { href: "/dashboard", label: "Overview" }, { href: "/sponsor", label: "Sponsor a woman" },
+  { href: "/dashboard/contributions", label: "Contributions" },
   { href: "/dashboard/recurring", label: "Recurring gifts" }, { href: "/dashboard/statements", label: "Statements" },
   { href: "/dashboard/profile", label: "Profile" },
-  { href: "/sponsor", label: "Sponsor a woman" },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
