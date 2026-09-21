@@ -34,14 +34,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <>
       <header className="bg-teal-800 text-white no-print">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
           <span className="font-display text-lg font-semibold">Mission Giving · Admin</span>
           <form action={signOutAction}><button className="min-h-11 px-3 underline">Sign out</button></form>
         </div>
       </header>
-      <div className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:grid md:grid-cols-[13rem_minmax(0,1fr)] md:gap-8">
+      <div className="w-full flex-1 px-4 py-6 md:grid md:grid-cols-[12rem_minmax(0,1fr)] md:gap-8 md:px-6">
         {items.length > 0 && <SideNav items={items} label="Admin" rootHref="/admin" />}
-        <main id="main" className="min-w-0 md:col-start-2">{children}</main>
+        <main id="main" className="min-w-0 max-w-6xl md:col-start-2">{children}</main>
       </div>
     </>
   );
