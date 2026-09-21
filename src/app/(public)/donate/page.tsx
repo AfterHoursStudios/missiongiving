@@ -8,7 +8,7 @@ import { isSupabaseConfigured, publicEnv } from "@/lib/env";
 export const metadata = { title: "Donate", alternates: { canonical: "/donate" } };
 export const dynamic = "force-dynamic";
 
-export default async function DonatePage({ searchParams }: { searchParams: Promise<{ frequency?: string; project?: string }> }) {
+export default async function DonatePage({ searchParams }: { searchParams: Promise<{ frequency?: string; project?: string; sponsor?: string }> }) {
   const sp = await searchParams;
 
   if (!isSupabaseConfigured) {
@@ -36,6 +36,10 @@ export default async function DonatePage({ searchParams }: { searchParams: Promi
     createSupabaseAdminClient().from("donor_profiles").select("first_name, last_name").eq("user_id", user.id).maybeSingle(),
   ]);
   const liveTiers = withinActiveWindow(tiers ?? []);
+  const sponsorId = /^[0-9a-f-]{36}$/i.test(sp.sponsor ?? "") ? sp.sponsor : null;
+  const { data: sponsor } = sponsorId
+    ? await supabase.from("sponsorships").select("id, name, monthly_amount_cents").eq("id", sponsorId).eq("status", "active").maybeSingle()
+    : { data: null };
   const freq = sp.frequency === "monthly" || sp.frequency === "yearly" ? sp.frequency : "one_time";
 
   const config: FlowConfig = {
@@ -43,7 +47,8 @@ export default async function DonatePage({ searchParams }: { searchParams: Promi
     customEnabled: settings.custom_amount_enabled, minCents: settings.min_donation_cents, maxCents: settings.max_donation_cents,
     publishableKey: publicEnv.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null,
     defaults: { firstName: profile?.first_name ?? "", lastName: profile?.last_name ?? "" },
-    initialFrequency: freq, initialProjectId: (projects ?? []).some((p) => p.id === sp.project) ? sp.project! : null,
+    sponsorship: sponsor ? { id: sponsor.id, name: sponsor.name, amountCents: sponsor.monthly_amount_cents } : null,
+    initialFrequency: sponsor && freq === "yearly" ? "monthly" : sponsor && !sp.frequency ? "monthly" : freq, initialProjectId: (projects ?? []).some((p) => p.id === sp.project) ? sp.project! : null,
   };
   return <Shell><DonateFlow config={config} /></Shell>;
 }

@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 // Pages that must work for anyone, with no backend configured.
-const PAGES = ["/", "/projects", "/about", "/legal/privacy", "/legal/ach-authorization", "/sign-in", "/register", "/reset-password", "/donate", "/unsubscribe"];
+const PAGES = ["/", "/projects", "/sponsor", "/about", "/legal/privacy", "/legal/ach-authorization", "/sign-in", "/register", "/reset-password", "/donate", "/unsubscribe"];
 
 for (const path of PAGES) {
   test.describe(path, () => {

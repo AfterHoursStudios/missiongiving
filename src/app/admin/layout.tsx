@@ -15,6 +15,7 @@ const NAV: { href: string; label: string; perm: Permission }[] = [
   { href: "/admin/reconciliation", label: "Reconciliation", perm: "finance.view" },
   { href: "/admin/offline-gift", label: "Offline gift", perm: "finance.view" },
   { href: "/admin/projects", label: "Projects", perm: "projects.manage" },
+  { href: "/admin/sponsorships", label: "Sponsorships", perm: "projects.manage" },
   { href: "/admin/tiers", label: "Donation tiers", perm: "tiers.manage" },
   { href: "/admin/campaigns", label: "Campaigns", perm: "comms.send" },
   { href: "/admin/messages", label: "Messages", perm: "comms.send" },

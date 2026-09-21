@@ -11,7 +11,10 @@ export default async function ProjectsAdminPage() {
   await requirePermission("projects.manage");
   await syncGoalStatuses();
   const db = createSupabaseAdminClient();
-  const { data } = await db.from("projects").select("id, title, slug, status, is_public, featured, goal_cents, offline_adjustment_cents, end_date").order("created_at", { ascending: false });
+  const cols = "id, title, slug, status, is_public, featured, goal_cents, offline_adjustment_cents, end_date";
+  // Sponsorships keep a hidden backing project; hide those here. Falls back if migration 0010 has not been applied yet.
+  let { data } = await db.from("projects").select(cols).neq("kind", "sponsorship").order("created_at", { ascending: false });
+  if (!data) ({ data } = await db.from("projects").select(cols).order("created_at", { ascending: false }));
   const rows = await Promise.all((data ?? []).map(async (p) => {
     const { data: t } = await db.rpc("project_totals", { p_project_id: p.id });
     return { ...p, raised: Number(t?.[0]?.raised_cents ?? 0), donors: Number(t?.[0]?.donor_count ?? 0) };

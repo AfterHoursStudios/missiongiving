@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = publicEnv.NEXT_PUBLIC_APP_URL;
-  const entries: MetadataRoute.Sitemap = ["", "/donate", "/projects", "/about"].map((p) => ({ url: `${base}${p}` }));
+  const entries: MetadataRoute.Sitemap = ["", "/donate", "/projects", "/sponsor", "/about"].map((p) => ({ url: `${base}${p}` }));
   if (!isSupabaseConfigured || !hasServiceRole()) return entries;
   try {
     const { data } = await createSupabaseAdminClient().from("projects").select("slug, updated_at")

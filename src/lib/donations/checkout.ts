@@ -9,6 +9,7 @@ export const checkoutSchema = z.object({
   destination: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("general") }),
     z.object({ kind: z.literal("project"), projectId: z.string().uuid() }),
+    z.object({ kind: z.literal("sponsorship"), sponsorshipId: z.string().uuid() }),
   ]),
   frequency: z.enum(FREQUENCIES),
   tierId: z.string().uuid().nullable(),
@@ -56,7 +57,7 @@ export function resolveAmount(
     if (!freqOk) return { ok: false, error: "That level is not offered for this frequency." };
     const destOk = input.destination.kind === "general"
       ? tier.general_fund && tier.project_id === null
-      : tier.project_id === null ? true : tier.project_id === input.destination.projectId;
+      : tier.project_id === null ? true : input.destination.kind === "project" && tier.project_id === input.destination.projectId;
     if (!destOk) return { ok: false, error: "That level is not offered for this destination." };
     return { ok: true, amountCents: tier.amount_cents, tierId: tier.id };
   }
@@ -64,4 +65,15 @@ export function resolveAmount(
   if (input.customAmountCents == null) return { ok: false, error: "Enter an amount." };
   const err = validateDonationAmount(input.customAmountCents, limits.min, limits.max);
   return err ? { ok: false, error: err } : { ok: true, amountCents: input.customAmountCents, tierId: null };
+}
+
+/**
+ * Sponsorship gifts use the woman's fixed monthly amount, decided on the server (never the browser). Monthly or one-time only.
+ */
+export function resolveSponsorship(
+  frequency: Frequency, sponsorship: { status: string; monthly_amount_cents: number } | null,
+): { ok: true; amountCents: number; tierId: null } | { ok: false; error: string } {
+  if (!sponsorship || sponsorship.status !== "active") return { ok: false, error: "This sponsorship is not available." };
+  if (frequency === "yearly") return { ok: false, error: "Sponsorships can be given monthly or as a one-time gift." };
+  return { ok: true, amountCents: sponsorship.monthly_amount_cents, tierId: null };
 }

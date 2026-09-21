@@ -3,6 +3,7 @@ import { Logo } from "./logo";
 
 const nav = [
   { href: "/projects", label: "Projects" },
+  { href: "/sponsor", label: "Sponsor a woman" },
   { href: "/about", label: "About" },
   { href: "/sign-in", label: "Sign in" },
 ];

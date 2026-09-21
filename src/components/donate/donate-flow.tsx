@@ -16,6 +16,7 @@ export interface FlowConfig {
   tiers: FlowTier[]; projects: FlowProject[]; customEnabled: boolean; minCents: number; maxCents: number;
   publishableKey: string | null; defaults: { firstName: string; lastName: string };
   initialFrequency: Frequency; initialProjectId: string | null;
+  sponsorship: { id: string; name: string; amountCents: number } | null;
 }
 type Frequency = "one_time" | "monthly" | "yearly";
 
@@ -53,7 +54,7 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
   const customAllowed = config.customEnabled && (project?.allow_custom_amount ?? true);
   const selected = tiers.find((t) => t.id === tierId) ?? null;
   const customCents = (() => { try { return custom ? dollarsToCents(custom) : null; } catch { return null; } })();
-  const amountCents = selected?.amount_cents ?? customCents;
+  const amountCents = config.sponsorship?.amountCents ?? selected?.amount_cents ?? customCents;
 
   function next() {
     setError(null);
@@ -68,8 +69,8 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
       return startTransition(async () => {
         const res = await startCheckout({
           idempotencyKey: key.current,
-          destination: projectId ? { kind: "project", projectId } : { kind: "general" },
-          frequency, tierId: selected?.id ?? null, customAmountCents: selected ? null : customCents,
+          destination: config.sponsorship ? { kind: "sponsorship", sponsorshipId: config.sponsorship.id } : projectId ? { kind: "project", projectId } : { kind: "general" },
+          frequency, tierId: config.sponsorship ? null : selected?.id ?? null, customAmountCents: config.sponsorship || selected ? null : customCents,
           donor: { firstName: d.firstName, lastName: d.lastName, phone: d.phone },
           anonymous: d.anonymous, marketingOptIn: d.marketing, projectUpdatesOptIn: d.projectUpdates,
           dedication: d.dedicationKind ? { kind: d.dedicationKind, name: d.dedicationName } : null,
@@ -101,7 +102,14 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
         {error && <p className="mb-4 rounded-md bg-danger-bg p-3 text-danger">{error}</p>}
       </div>
 
-      {step === 0 && (
+      {step === 0 && config.sponsorship && (
+        <div>
+          <h2 className="font-display text-2xl font-semibold">You are sponsoring {config.sponsorship.name}</h2>
+          <p className="mt-2 text-lg">{formatMoney(config.sponsorship.amountCents)} per month. Choose monthly or a single gift on the next step.</p>
+        </div>
+      )}
+
+      {step === 0 && !config.sponsorship && (
         <fieldset className="space-y-3">
           <legend className="mb-3 font-display text-2xl font-semibold">Where should your gift go?</legend>
           <button type="button" className={choice(projectId === null) + " w-full"} aria-pressed={projectId === null}
@@ -117,7 +125,7 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
         <fieldset>
           <legend className="mb-3 font-display text-2xl font-semibold">How often would you like to give?</legend>
           <div className="grid gap-3 sm:grid-cols-3">
-            {FREQ.map((f) => (
+            {FREQ.filter((f) => !config.sponsorship || f.id !== "yearly").map((f) => (
               <button key={f.id} type="button" className={choice(frequency === f.id)} aria-pressed={frequency === f.id}
                 onClick={() => { setFrequency(f.id); setTierId(null); }}>{f.label}</button>
             ))}
@@ -125,7 +133,14 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
         </fieldset>
       )}
 
-      {step === 2 && (
+      {step === 2 && config.sponsorship && (
+        <div>
+          <h2 className="font-display text-2xl font-semibold">Your gift</h2>
+          <p className="mt-2 text-lg"><strong>{formatMoney(config.sponsorship.amountCents)}</strong> {frequency === "monthly" ? "every month" : "one time"} to sponsor {config.sponsorship.name}.</p>
+        </div>
+      )}
+
+      {step === 2 && !config.sponsorship && (
         <fieldset>
           <legend className="mb-3 font-display text-2xl font-semibold">Choose an amount</legend>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -183,7 +198,7 @@ export function DonateFlow({ config }: { config: FlowConfig }) {
         <div>
           <h2 className="font-display text-2xl font-semibold">Payment</h2>
           <p className="mt-2">
-            {formatMoney(amountCents ?? 0)} {FREQ.find((f) => f.id === frequency)?.label.toLowerCase()} to {project?.title ?? "the General Fund"}
+            {formatMoney(amountCents ?? 0)} {FREQ.find((f) => f.id === frequency)?.label.toLowerCase()} to {config.sponsorship ? `sponsor ${config.sponsorship.name}` : project?.title ?? "the General Fund"}
           </p>
           <Elements stripe={stripePromise} options={{ clientSecret: session.clientSecret, appearance: { theme: "stripe" } }}>
             <PayForm donationId={session.donationId} />

@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getOrgSettings, getSetting, setSetting } from "@/lib/settings";
 import { getDonationProductId, getStripe, isStripeConfigured } from "@/lib/stripe/client";
 import { rateLimit } from "@/lib/rate-limit";
-import { checkoutSchema, resolveAmount, type TierRow } from "./checkout";
+import { checkoutSchema, resolveAmount, resolveSponsorship, type TierRow } from "./checkout";
 
 export type CheckoutResult =
   | { ok: true; donationId: string; clientSecret: string }
@@ -39,7 +39,15 @@ export async function startCheckout(raw: unknown): Promise<CheckoutResult> {
   let projectId: string | null = null;
   let fundId: string | null = null;
   let projectAllowsCustom = true;
-  if (input.destination.kind === "project") {
+  let sponsorAmount: { ok: true; amountCents: number; tierId: null } | null = null;
+  if (input.destination.kind === "sponsorship") {
+    const { data: sp } = await db.from("sponsorships").select("id, status, monthly_amount_cents, project_id").eq("id", input.destination.sponsorshipId).maybeSingle();
+    const r = resolveSponsorship(input.frequency, sp);
+    if (!r.ok) return r;
+    const { data: backing } = await db.from("projects").select("id, fund_id").eq("id", sp!.project_id).single();
+    if (!backing) return { ok: false, error: "This sponsorship is not available." };
+    projectId = backing.id; fundId = backing.fund_id; sponsorAmount = r;
+  } else if (input.destination.kind === "project") {
     const { data: project } = await db.from("projects").select("id, fund_id, status, is_public, allow_custom_amount")
       .eq("id", input.destination.projectId).maybeSingle();
     if (!project || !project.is_public || !["active", "goal_reached"].includes(project.status))
@@ -56,7 +64,7 @@ export async function startCheckout(raw: unknown): Promise<CheckoutResult> {
     ? ((await db.from("donation_tiers").select("id, amount_cents, status, project_id, general_fund, allow_one_time, allow_monthly, allow_yearly, active_from, active_until")
         .eq("id", input.tierId).maybeSingle()).data as TierRow | null)
     : null;
-  const amount = resolveAmount(input, tier, {
+  const amount = sponsorAmount ?? resolveAmount(input, tier, {
     min: settings.min_donation_cents, max: settings.max_donation_cents,
     customEnabled: settings.custom_amount_enabled, projectAllowsCustom,
   });
