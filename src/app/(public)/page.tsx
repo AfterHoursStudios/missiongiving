@@ -52,7 +52,7 @@ export default async function HomePage() {
             <div className="mt-8 flex flex-wrap gap-4">
               <Link href="/donate" className="min-h-12 rounded-md bg-brand-700 px-7 py-3 font-semibold text-white hover:bg-brand-800">Donate now</Link>
               <Link href="/sponsor" className="min-h-12 rounded-md bg-teal-800 px-7 py-3 font-semibold text-white hover:bg-teal-600">Sponsor a woman</Link>
-              <Link href="/projects" className="min-h-12 rounded-md border-2 border-teal-800 px-7 py-3 font-semibold text-teal-800 hover:bg-white">See projects</Link>
+              <Link href="/projects" className="min-h-12 rounded-md bg-gold px-7 py-3 font-semibold text-ink hover:brightness-95">See projects</Link>
             </div>
           </div>
           {hero ? (
