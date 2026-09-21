@@ -51,6 +51,7 @@ export default async function HomePage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <Link href="/donate" className="min-h-12 rounded-md bg-brand-700 px-7 py-3 font-semibold text-white hover:bg-brand-800">Donate now</Link>
+              <Link href="/sponsor" className="min-h-12 rounded-md border-2 border-brand-700 px-7 py-3 font-semibold text-brand-800 hover:bg-white">Sponsor a woman</Link>
               <Link href="/projects" className="min-h-12 rounded-md border-2 border-teal-800 px-7 py-3 font-semibold text-teal-800 hover:bg-white">See projects</Link>
             </div>
           </div>
