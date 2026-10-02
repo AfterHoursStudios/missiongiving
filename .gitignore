@@ -113,7 +113,6 @@ next-env.d.ts
 /.windsurf/
 /.zcode/
 /.zencoder/
-/public/images/mission-giving-hero.png
 
 .vercel
 .env*
