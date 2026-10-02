@@ -114,3 +114,6 @@ next-env.d.ts
 /.zcode/
 /.zencoder/
 /public/images/mission-giving-hero.png
+
+.vercel
+.env*
