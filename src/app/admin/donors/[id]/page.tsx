@@ -1,14 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { ChevronLeft } from "lucide-react";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { addNote, resendReceipt, setTag, updateDonor } from "@/lib/admin/donor-actions";
-import { refundDonation } from "@/lib/admin/finance-actions";
-import { validateRefund } from "@/lib/admin/finance-logic";
-import { SimpleForm, TextInput } from "@/components/donor/forms";
-import { StatusBadge, FREQUENCY_LABEL, METHOD_LABEL } from "@/components/donor/ui";
 import { formatMoney, netSettledCents } from "@/lib/money";
+import { givingProfile } from "@/lib/admin/giving-profile";
+import { listPaymentMethods } from "@/lib/admin/payment-on-file";
+import { finalizePaymentMethodSetup } from "@/lib/admin/payment-method-actions";
+import { publicEnv } from "@/lib/env";
+import { DonorHeader, RecordTabs, TabToolbar, type RecordTab } from "@/components/admin/donor-record/header";
+import { MainTab } from "@/components/admin/donor-record/main-tab";
+import { GiftsTab, type GiftRow } from "@/components/admin/donor-record/gifts-tab";
+import { PledgesTab, type PledgeRow } from "@/components/admin/donor-record/pledges-tab";
+import { ContactsTab, buildContacts, type CampaignRow, type CommRow } from "@/components/admin/donor-record/contacts-tab";
+import { AccountsTab } from "@/components/admin/donor-record/accounts-tab";
+import { linkCls } from "@/components/admin/donor-record/ui";
+import { TodoDialogProvider } from "@/components/admin/todo-dialog";
+import type { TodoRow } from "@/components/admin/todo-list";
+import { getOrgSettings } from "@/lib/settings";
+import { isPlaceholderEmail } from "@/lib/admin/dp-import";
+import { scoreTier } from "@/lib/admin/donor-score";
+import { reconcileDonorInFlight } from "@/lib/stripe/reconcile-donation";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Donor" };
@@ -16,132 +29,165 @@ export const metadata = { title: "Donor" };
 type Rel<T> = T | T[] | null;
 const one = <T,>(v: Rel<T>) => (Array.isArray(v) ? v[0] : v) ?? null;
 
-export default async function DonorDetail({ params }: { params: Promise<{ id: string }> }) {
-  const { perms } = await requirePermission("donors.view");
+const TAB_KEYS = ["main", "gifts", "pledges", "contacts", "accounts"] as const;
+type TabKey = (typeof TAB_KEYS)[number];
+
+export default async function DonorDetail({ params, searchParams }: {
+  params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string; failed?: string; setup_intent?: string }>;
+}) {
+  const { user, perms } = await requirePermission("donors.view");
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();
+  const sp = await searchParams;
   const db = createSupabaseAdminClient();
   const { data: donor } = await db.from("donor_profiles").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
   if (!donor) notFound();
 
-  const [donations, recurring, notes, assigned, allTags, prefs] = await Promise.all([
-    db.from("donations").select("id, amount_cents, refunded_cents, status, stripe_payment_intent_id, frequency, payment_method, donated_at, projects(title), receipts(receipt_number, is_final, delivery_history)").eq("donor_id", id).order("donated_at", { ascending: false }),
-    db.from("recurring_donations").select("id, amount_cents, frequency, status, next_charge_at, projects(title)").eq("donor_id", id),
-    db.from("donor_notes").select("id, body, created_at").eq("donor_id", id).order("created_at", { ascending: false }),
-    db.from("donor_tag_assignments").select("donor_tags(id, name)").eq("donor_id", id),
-    db.from("donor_tags").select("id, name").order("name"),
-    db.from("communication_preferences").select("marketing_email, project_updates, annual_statement_email, suppressed").eq("donor_id", id).maybeSingle(),
-  ]);
-  const gifts = donations.data ?? [];
-  const myTags = (assigned.data ?? []).map((a) => one<{ id: string; name: string }>(a.donor_tags)).filter(Boolean) as { id: string; name: string }[];
-  const projects = [...new Set(gifts.map((g) => one<{ title: string }>(g.projects)?.title).filter(Boolean))];
   const canEdit = perms.has("donors.edit");
-  const yn = (b?: boolean) => (b ? "Yes" : "No");
+  const canFinance = perms.has("finance.view");
+  const canChangePayment = canFinance && perms.has("expenses.record");
+  const canMessage = perms.has("comms.send");
+  const visible = TAB_KEYS.filter((k) => k !== "accounts" || canFinance);
+  const tab: TabKey = (visible as readonly string[]).includes(sp.tab ?? "") ? (sp.tab as TabKey) : "main";
+  const page = Math.max(1, Number(sp.page) || 1);
+
+  // Returning from confirming a new card/bank account with Stripe (see PaymentMethodForm): make it the default.
+  const setupResult = sp.setup_intent && canFinance ? await finalizePaymentMethodSetup(id, sp.setup_intent) : null;
+
+  // Bring this donor's recent in-flight gifts up to date from Stripe before showing them (covers missed webhooks).
+  await reconcileDonorInFlight(id);
+
+  const [donations, recurring, assigned, comms, campaigns, scoreRow] = await Promise.all([
+    db.from("donations").select("id, amount_cents, refunded_cents, status, stripe_payment_intent_id, frequency, payment_method, donated_at, recurring_id, is_offline, projects(title, kind), receipts(receipt_number, is_final, delivery_history)").eq("donor_id", id).order("donated_at", { ascending: false }),
+    db.from("recurring_donations").select("id, amount_cents, frequency, status, created_at, next_charge_at, canceled_at, cancel_reason, projects(title, kind)").eq("donor_id", id),
+    db.from("donor_tag_assignments").select("donor_tags(id, name)").eq("donor_id", id),
+    db.from("donor_communications").select("id, kind, channel, subject, detail, status, created_at, created_by").eq("donor_id", id).order("created_at", { ascending: false }).limit(1000),
+    db.from("campaign_recipients").select("id, status, updated_at, communication_campaigns(subject, kind, sent_at)").eq("donor_id", id).limit(1000),
+    db.from("donor_scores").select("donor_score, recency_score, frequency_score, monetary_score, gifts_24m, given_24m_cents").eq("donor_id", id).maybeSingle(),
+  ]);
+  const score = scoreRow.error ? null : scoreRow.data; // null until migration 0018 is applied
+  const tier = scoreTier(score?.donor_score);
+
+  const gifts: GiftRow[] = (donations.data ?? []).map((g) => ({
+    ...g, project: one<{ title: string }>(g.projects)?.title ?? null,
+    receipt: one<{ receipt_number: string; is_final: boolean; delivery_history: unknown[] }>(g.receipts),
+  }));
+  const pledges: PledgeRow[] = (recurring.data ?? []).map((r) => ({ ...r, project: one<{ title: string }>(r.projects)?.title ?? null }));
+  const tags = (assigned.data ?? []).map((a) => one<{ id: string; name: string }>(a.donor_tags)).filter(Boolean) as { id: string; name: string }[];
+
+  // Staff emails for contacts they logged by hand.
+  const staffIds = [...new Set((comms.data ?? []).map((c) => c.created_by).filter(Boolean))] as string[];
+  const staff = staffIds.length ? new Map(((await db.from("profiles").select("id, email").in("id", staffIds)).data ?? []).map((p) => [p.id, p.email as string])) : new Map<string, string>();
+  const contacts = buildContacts(
+    (comms.data ?? []).map((c): CommRow => ({ ...c, staff: c.created_by ? staff.get(c.created_by) ?? null : null })),
+    (campaigns.data ?? []).map((r): CampaignRow => ({ id: r.id, status: r.status, updated_at: r.updated_at, campaign: one<{ subject: string; kind: string; sent_at: string | null }>(r.communication_campaigns) })),
+  );
+
+  // Header: automatic flags and headline stats.
+  const livePledges = pledges.filter((r) => ["active", "past_due"].includes(r.status));
+  const isSponsor = [...(donations.data ?? []).map((g) => one<{ kind: string }>(g.projects)), ...(recurring.data ?? []).map((r) => one<{ kind: string }>(r.projects))].some((p) => p?.kind === "sponsorship");
+  const profile = givingProfile(gifts);
+  const monthlyCents = livePledges.reduce((s, r) => s + (r.frequency === "yearly" ? Math.round(r.amount_cents / 12) : r.amount_cents), 0);
+  const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  const tabs: RecordTab[] = [
+    { key: "main", label: "Main", subtitle: "profile info" },
+    { key: "gifts", label: "Gifts", subtitle: "donations", count: gifts.length },
+    { key: "pledges", label: "Pledges", subtitle: "recurring gifts", count: pledges.length },
+    { key: "contacts", label: "Contacts", subtitle: "communications sent", count: contacts.length },
+    { key: "accounts", label: "Accounts", subtitle: "payment methods", count: donor.stripe_customer_id ? 1 : 0 },
+  ].filter((t) => (visible as readonly string[]).includes(t.key));
+  const tabHref = (k: string) => `/admin/donors/${id}?tab=${k}`;
+
+  // Contacts-tab-only data: to-dos (null when migration 0014 isn't applied) and the staff who can be assigned.
+  const contactsData = tab === "contacts" ? await (async () => {
+    const [todosRes, staffRes, settings] = await Promise.all([
+      db.from("donor_todos").select("id, donor_id, activity, due_date, due_time, notes, completed_at, assigned_to").eq("donor_id", id).limit(500),
+      db.from("staff_profiles").select("user_id, display_name, active").order("display_name"),
+      getOrgSettings(),
+    ]);
+    const names = new Map((staffRes.data ?? []).map((s) => [s.user_id as string, s.display_name as string]));
+    const todos: TodoRow[] | null = todosRes.error ? null : (todosRes.data ?? []).map((t) => ({ ...t, assignee: names.get(t.assigned_to) ?? null }));
+    return {
+      todos, staff: (staffRes.data ?? []).filter((s) => s.active).map((s) => ({ id: s.user_id as string, name: s.display_name as string })),
+      today: new Date().toLocaleDateString("en-CA", { timeZone: settings.timezone }),
+    };
+  })() : null;
+
+  // Main-tab-only data, loaded only when that tab is open.
+  const main = tab === "main" ? await Promise.all([
+    canMessage ? db.from("message_templates").select("key, name").order("name") : Promise.resolve({ data: null }),
+    db.from("donor_tags").select("id, name").order("name"),
+    db.from("donor_notes").select("id, body, created_at").eq("donor_id", id).order("created_at", { ascending: false }),
+    db.from("communication_preferences").select("marketing_email, project_updates, annual_statement_email, suppressed").eq("donor_id", id).maybeSingle(),
+  ]) : null;
 
   return (
     <>
-      <p><Link className="underline" href="/admin/donors">← All donors</Link></p>
-      <h1 className="mt-2 text-3xl font-semibold">{donor.first_name} {donor.last_name}</h1>
-      <p className="text-ink-soft">{donor.email}{donor.phone ? ` · ${donor.phone}` : ""}</p>
-      <dl className="mt-6 grid grid-cols-2 gap-6 md:grid-cols-4">
-        <Fact label="Lifetime giving" value={formatMoney(netSettledCents(gifts))} />
-        <Fact label="Status" value={donor.status.replace("_", " ")} />
-        <Fact label="Projects supported" value={projects.length ? projects.join(", ") : "None"} />
-        <Fact label="Household / organization" value={donor.organization_name ?? "—"} />
-      </dl>
+      <p className="mb-3 text-sm"><Link className={`${linkCls} inline-flex min-h-11 items-center gap-1`} href="/admin/donors"><ChevronLeft aria-hidden="true" size={16} />All donors</Link></p>
 
-      <h2 className="mt-10 text-2xl font-semibold">Giving history</h2>
-      {gifts.length === 0 ? <p className="mt-2 text-ink-soft">No gifts.</p> : (
-        <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[40rem] text-left">
-          <caption className="sr-only">Giving history</caption>
-          <thead><tr className="border-b-2 border-ink">{["Date", "Amount", "Method", "Frequency", "Designation", "Status", "Receipt"].map((h) => <th key={h} scope="col" className="py-2 pr-4">{h}</th>)}</tr></thead>
-          <tbody>{gifts.map((g) => {
-            const rc = one<{ receipt_number: string; is_final: boolean; delivery_history: unknown[] }>(g.receipts);
-            return (
-              <tr key={g.id} className="border-b border-line align-top">
-                <td className="py-2 pr-4">{new Date(g.donated_at).toLocaleDateString("en-US")}</td>
-                <td className="py-2 pr-4 font-semibold">{formatMoney(g.amount_cents)}{g.refunded_cents > 0 && <span className="block text-sm font-normal text-warning">refunded {formatMoney(g.refunded_cents)}</span>}</td>
-                <td className="py-2 pr-4">{METHOD_LABEL[g.payment_method]}</td>
-                <td className="py-2 pr-4">{FREQUENCY_LABEL[g.frequency]}</td>
-                <td className="py-2 pr-4">{one<{ title: string }>(g.projects)?.title ?? "General Fund"}</td>
-                <td className="py-2 pr-4"><StatusBadge status={g.status} /></td>
-                <td className="py-2">
-                  {rc ? (<>
-                    <a className="underline" href={`/receipts/${g.id}/pdf`}>{rc.receipt_number}</a>
-                    <span className="block text-sm text-ink-soft">{rc.is_final ? "Final" : "Pending"} · sent {rc.delivery_history?.length ?? 0}×</span>
-                    {canEdit && rc.is_final && <div className="mt-1"><SimpleForm action={resendReceipt} submit="Resend"><input type="hidden" name="donationId" value={g.id} /></SimpleForm></div>}
-                  </>) : "—"}
-                  {perms.has("refunds.issue") && !validateRefund({ status: g.status, payment_method: g.payment_method, amount_cents: g.amount_cents, refunded_cents: g.refunded_cents, has_payment_intent: !!g.stripe_payment_intent_id }, 1) && (
-                    <details className="mt-2"><summary className="cursor-pointer text-sm font-semibold text-danger underline">Refund</summary>
-                      <div className="mt-2 w-56"><SimpleForm action={refundDonation} submit="Submit refund" tone="danger">
-                        <input type="hidden" name="donationId" value={g.id} />
-                        <TextInput label={`Amount (max ${((g.amount_cents - g.refunded_cents) / 100).toFixed(2)})`} name="amount" defaultValue={((g.amount_cents - g.refunded_cents) / 100).toFixed(2)} />
-                        <TextInput label="Reason" name="reason" />
-                      </SimpleForm></div></details>)}
-                </td>
-              </tr>);
-          })}</tbody></table></div>
+      <DonorHeader
+        donor={donor}
+        flags={[
+          { label: "Monthly Donor", on: livePledges.length > 0, icon: "monthly" },
+          { label: "Sponsor", on: isSponsor, icon: "sponsor" },
+          ...tags.map((t) => ({ label: t.name, on: true, icon: "tag" as const })),
+        ]}
+        stats={[
+          ...(score && tier ? [{
+            icon: "score" as const, label: "Donor score",
+            value: <>{score.donor_score}<span className="text-base font-normal text-ink-soft">/100</span></>,
+            hint: <span className={`inline-block rounded border-2 px-1.5 text-xs font-bold uppercase ${TIER_TONE[tier]}`}>{tier}</span>,
+          }] : []),
+          { icon: "lastGift", label: "Last gift", value: profile.last ? formatMoney(profile.last.cents) : "—", hint: profile.last ? shortDate(profile.last.at) : undefined },
+          { icon: "totalGifts", label: "Total gifts", value: String(profile.giftCount) },
+          { icon: "totalGiven", label: "Total given", value: formatMoney(netSettledCents(gifts)) },
+          ...(livePledges.length ? [{ icon: "monthly" as const, label: "Recurring giving", value: `${formatMoney(monthlyCents)}/mo`, hint: `${livePledges.length} active` }] : []),
+        ]}
+      />
+
+      <RecordTabs tabs={tabs} active={tab} href={tabHref} />
+
+      {main && (
+        <MainTab
+          donor={donor} canEdit={canEdit} canGift={canFinance} canAudit={perms.has("audit.view")} score={score}
+          deletion={perms.has("donors.delete") ? { gifts: gifts.length, pledges: pledges.length, activePledges: livePledges.length, hasLogin: !!donor.user_id } : null}
+          templates={canMessage ? main[0].data ?? [] : null} tags={tags} allTags={main[1].data ?? []}
+          notes={main[2].data ?? []} prefs={main[3].data} profile={profile}
+          lastContact={contacts[0] ? { at: contacts[0].at, type: contacts[0].activity } : null}
+        />
       )}
 
-      <h2 className="mt-10 text-2xl font-semibold">Recurring gifts</h2>
-      {(recurring.data ?? []).length === 0 ? <p className="mt-2 text-ink-soft">None.</p> : (
-        <ul className="mt-3 divide-y divide-line border-y border-line">{(recurring.data ?? []).map((r) => (
-          <li key={r.id} className="py-2">{formatMoney(r.amount_cents)} {FREQUENCY_LABEL[r.frequency].toLowerCase()} · {one<{ title: string }>(r.projects)?.title ?? "General Fund"} · {r.status.replace("_", " ")}{r.next_charge_at ? ` · next ${new Date(r.next_charge_at).toLocaleDateString("en-US")}` : ""}</li>
-        ))}</ul>
+      {/* Gifts: no toolbar (gifts are added with the list's "+ Add gift" button), just the strip that closes the tab bar. */}
+      {tab === "gifts" && <div aria-hidden="true" className="h-3 rounded-b-lg border border-t-0 border-line bg-white shadow-sm" />}
+      {tab !== "main" && tab !== "gifts" && (
+        <TabToolbar>
+          <span className="text-ink-soft">{TOOLBAR_NOTE[tab]}</span>
+        </TabToolbar>
       )}
 
-      <h2 className="mt-10 text-2xl font-semibold">Communication preferences</h2>
-      <p className="mt-2">News: {yn(prefs.data?.marketing_email)} · Project updates: {yn(prefs.data?.project_updates)} · Statement email: {yn(prefs.data?.annual_statement_email ?? true)}{prefs.data?.suppressed ? " · SUPPRESSED (bounce/complaint)" : ""}</p>
-
-      <h2 className="mt-10 text-2xl font-semibold">Tags</h2>
-      <ul className="mt-2 flex flex-wrap gap-2">{myTags.length === 0 && <li className="text-ink-soft">None</li>}{myTags.map((t) => (
-        <li key={t.id} className="flex items-center gap-2 rounded bg-paper-2 px-2 py-1">{t.name}
-          {canEdit && <SimpleForm action={setTag} submit="Remove"><input type="hidden" name="id" value={id} /><input type="hidden" name="op" value="remove" /><input type="hidden" name="tagId" value={t.id} /></SimpleForm>}</li>
-      ))}</ul>
-      {canEdit && (
-        <div className="mt-3 max-w-md"><SimpleForm action={setTag} submit="Add tag">
-          <input type="hidden" name="id" value={id} /><input type="hidden" name="op" value="add" />
-          <label htmlFor="tagId" className="block font-semibold">Existing tag</label>
-          <select id="tagId" name="tagId" className="min-h-11 w-full rounded-md border border-ink-soft bg-white px-2"><option value="">Choose…</option>{(allTags.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-          <TextInput label="Or create a new tag" name="newTag" />
-        </SimpleForm></div>
+      {tab === "gifts" && <GiftsTab donorId={id} gifts={gifts} page={page} showFailed={sp.failed === "1"} canEdit={canEdit} canRefund={perms.has("refunds.issue")} canGift={canFinance} />}
+      {tab === "pledges" && <PledgesTab donorId={id} pledges={pledges} gifts={gifts} page={page} canGift={canFinance} />}
+      {contactsData && (
+        <TodoDialogProvider staff={contactsData.staff} me={user.id}>
+          <ContactsTab donorId={id} contacts={contacts} page={page} canEdit={canEdit} logReady={!comms.error}
+            todos={contactsData.todos} today={contactsData.today}
+            todoDonor={{ id, name: `${donor.first_name} ${donor.last_name}`, status: donor.status, phone: donor.phone, email: isPlaceholderEmail(donor.email) ? "" : donor.email,
+              lastGiftCents: profile.last?.cents ?? null, lastGiftAt: profile.last?.at ?? null, giftCount: profile.giftCount, lifetimeCents: profile.lifetimeCents }} />
+        </TodoDialogProvider>
       )}
-
-      <h2 className="mt-10 text-2xl font-semibold">Internal notes</h2>
-      <p className="text-sm text-ink-soft">Visible to staff only. Do not record payment card or bank numbers.</p>
-      {canEdit && <div className="mt-3 max-w-xl"><SimpleForm action={addNote} submit="Add note"><input type="hidden" name="id" value={id} />
-        <label htmlFor="body" className="block font-semibold">Note</label><textarea id="body" name="body" rows={3} maxLength={4000} required className="w-full rounded-md border border-ink-soft bg-white px-3 py-2" /></SimpleForm></div>}
-      <ul className="mt-4 divide-y divide-line border-y border-line">{(notes.data ?? []).map((n) => (
-        <li key={n.id} className="py-3"><p className="whitespace-pre-wrap">{n.body}</p><p className="text-sm text-ink-soft">{new Date(n.created_at).toLocaleString("en-US")}</p></li>
-      ))}{(notes.data ?? []).length === 0 && <li className="py-3 text-ink-soft">No notes.</li>}</ul>
-
-      {canEdit && (
-        <details className="mt-10">
-          <summary className="min-h-11 cursor-pointer py-2 text-2xl font-semibold">Correct donor information</summary>
-          <p className="text-sm text-ink-soft">Nonfinancial details only. Email and payment data cannot be edited here.</p>
-          <div className="mt-4 max-w-xl"><SimpleForm action={updateDonor} submit="Save changes">
-            <input type="hidden" name="id" value={id} />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextInput label="First name" name="first_name" defaultValue={donor.first_name} required />
-              <TextInput label="Last name" name="last_name" defaultValue={donor.last_name} required />
-            </div>
-            <TextInput label="Phone" name="phone" defaultValue={donor.phone} />
-            <TextInput label="Household or organization" name="organization_name" defaultValue={donor.organization_name} />
-            <TextInput label="Address line 1" name="address_line1" defaultValue={donor.address_line1} />
-            <TextInput label="Address line 2" name="address_line2" defaultValue={donor.address_line2} />
-            <div className="grid gap-4 sm:grid-cols-3">
-              <TextInput label="City" name="city" defaultValue={donor.city} /><TextInput label="State/Region" name="region" defaultValue={donor.region} /><TextInput label="Postal code" name="postal_code" defaultValue={donor.postal_code} />
-            </div>
-            <label htmlFor="status" className="block font-semibold">Status</label>
-            <select id="status" name="status" defaultValue={donor.status} className="min-h-11 w-full rounded-md border border-ink-soft bg-white px-2">
-              {["active", "inactive", "lapsed", "do_not_contact"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select>
-          </SimpleForm></div>
-        </details>
+      {tab === "accounts" && canFinance && (
+        <AccountsTab donorId={id} {...await listPaymentMethods(donor.stripe_customer_id)} canChange={canChangePayment}
+          publishableKey={publicEnv.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null} setupResult={setupResult} />
       )}
     </>
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
-  return <div><dt className="text-sm text-ink-soft">{label}</dt><dd className="text-lg font-semibold">{value}</dd></div>;
-}
+const TIER_TONE = { high: "border-success text-success", medium: "border-gold-dark text-gold-dark", low: "border-danger text-danger" } as const;
+
+const TOOLBAR_NOTE: Record<Exclude<TabKey, "main" | "gifts">, string> = {
+  pledges: "Recurring gifts this donor has signed up for.",
+  contacts: "To-dos for this donor, then every receipt, thank-you, message, campaign and logged contact sent to them.",
+  accounts: "Saved cards and bank accounts, read live from Stripe.",
+};

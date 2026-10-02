@@ -29,8 +29,10 @@ export function sanitizeEmailHtml(html: string) {
   });
 }
 
+/** Strips tags for the plain-text alternative, first turning block boundaries into blank lines so paragraphs, list items and headings that were visually separated in the HTML stay separated in the text version. */
 export function htmlToText(html: string) {
-  return sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} }).replace(/\s+\n/g, "\n").trim();
+  const withBreaks = html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|li|h2|h3|blockquote)>/gi, "\n\n");
+  return sanitizeHtml(withBreaks, { allowedTags: [], allowedAttributes: {} }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export interface Template { subject: string; body_html: string; body_text: string }

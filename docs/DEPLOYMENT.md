@@ -55,8 +55,11 @@ account with a verified sending domain, and a domain name. Do everything first i
 | `EMAIL_BATCH_SIZE` | no | Optional, 1-100 (default 50) |
 | `INITIAL_ADMIN_EMAIL` | no | Used once by the bootstrap script |
 
-3. Deploy. `vercel.json` schedules `/api/cron/send-campaigns` every 5 minutes and `/api/cron/retention` daily. Sub-daily crons need a
-   paid Vercel plan; on the free plan change the campaign schedule to daily or call the endpoint from another scheduler.
+3. Deploy. `vercel.json` runs every cron once a day so it works on Vercel's free Hobby plan: `/api/cron/send-campaigns`
+   (15:00 UTC), `/api/cron/stripe-sync` (06:00 UTC), `/api/cron/retention` and `/api/cron/expiring-cards` (digests
+   recurring-donor cards expiring within 30 days to the org contact email set in Settings). On a paid plan you can
+   send campaigns every 5 minutes (`*/5 * * * *`) and sync Stripe every 15 (`*/15 * * * *`), or call the endpoints
+   from another scheduler.
 4. Add your domain and confirm HTTPS.
 5. Apply Vercel Firewall rate-limit rules for `/sign-in`, `/register`, `/reset-password`, `/donate` and `/api/unsubscribe` (the built-in limiter is per-instance memory).
 

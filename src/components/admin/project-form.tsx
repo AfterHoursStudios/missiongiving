@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SimpleForm, CheckInput, TextInput } from "@/components/donor/forms";
 import { saveProject } from "@/lib/admin/project-actions";
 import { PROJECT_STATUSES, SUMMARY_MAX } from "@/lib/admin/project-schema";
@@ -8,11 +9,12 @@ export interface ProjectValues {
   gallery?: string[] | null; location?: string | null; goal_cents?: number | null; start_date?: string | null; end_date?: string | null;
   status?: string; featured?: boolean; is_public?: boolean; allow_custom_amount?: boolean;
   seo_title?: string | null; seo_description?: string | null; share_image_url?: string | null;
+  donation_form_template_id?: string | null;
 }
 const area = "mt-1.5 w-full rounded-md border border-ink-soft bg-white px-3 py-2";
 const dateCls = "mt-1.5 min-h-12 w-full rounded-md border border-ink-soft bg-white px-2";
 
-export function ProjectForm({ project }: { project?: ProjectValues }) {
+export function ProjectForm({ project, formTemplates = [] }: { project?: ProjectValues; formTemplates?: { id: string; name: string }[] }) {
   // New projects default to Public: visitors still see nothing until the status is Active, Goal reached or Completed.
   const p = project ?? { status: "draft", allow_custom_amount: true, is_public: true };
   return (
@@ -36,6 +38,13 @@ export function ProjectForm({ project }: { project?: ProjectValues }) {
       <CheckInput label="Public: show on the website and in the donate flow (also requires Active, Goal reached or Completed status)" name="is_public" defaultChecked={p.is_public} />
       <CheckInput label="Featured on the home page" name="featured" defaultChecked={p.featured} />
       <CheckInput label="Allow custom donation amounts" name="allow_custom_amount" defaultChecked={p.allow_custom_amount} />
+      <div><label htmlFor="donation_form_template_id" className="block font-semibold">Donation form</label>
+        <select id="donation_form_template_id" name="donation_form_template_id" defaultValue={p.donation_form_template_id ?? ""} className={dateCls}>
+          <option value="">Use the default form</option>
+          {formTemplates.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
+        <p className="text-sm text-ink-soft">Controls the branding and fields shown when someone donates to this project. Built in <Link className="underline" href="/admin/forms">Donation forms</Link>.</p>
+      </div>
       <TextInput label="SEO title (max 70)" name="seo_title" defaultValue={p.seo_title} />
       <TextInput label="SEO description (max 160)" name="seo_description" defaultValue={p.seo_description} />
     </SimpleForm>

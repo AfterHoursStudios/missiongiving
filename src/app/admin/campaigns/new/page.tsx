@@ -13,9 +13,10 @@ export default async function NewCampaignPage({ searchParams }: { searchParams: 
   await requirePermission("comms.send");
   const db = createSupabaseAdminClient();
   const sp = await searchParams;
-  const [{ data: projects }, { data: tags }] = await Promise.all([
+  const [{ data: projects }, { data: tags }, { data: forms }] = await Promise.all([
     db.from("projects").select("id, title, slug, summary").neq("status", "archived").order("title"),
     db.from("donor_tags").select("id, name").order("name"),
+    db.from("donation_form_templates").select("id, name").eq("status", "active").order("name"),
   ]);
 
   // Announcing a project: start from a draft the staff member can edit. Nothing is sent from here.
@@ -33,7 +34,7 @@ export default async function NewCampaignPage({ searchParams }: { searchParams: 
       <p><Link className="underline" href="/admin/campaigns">← All campaigns</Link></p>
       <h1 className="mt-2 text-3xl font-semibold">New campaign</h1>
       <p className="mt-1 text-sm text-ink-soft">You will preview the audience and email, send a test, and confirm before anything is sent.</p>
-      <div className="mt-6 max-w-2xl"><CampaignForm campaign={initial} projects={(projects ?? []).map((p) => ({ id: p.id, title: p.title }))} tags={tags ?? []} /></div>
+      <div className="mt-6 max-w-2xl"><CampaignForm campaign={initial} projects={(projects ?? []).map((p) => ({ id: p.id, title: p.title }))} tags={tags ?? []} formTemplates={forms ?? []} /></div>
     </>
   );
 }

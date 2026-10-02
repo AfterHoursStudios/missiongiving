@@ -21,6 +21,7 @@ const uuid = z.string().uuid();
 const contentSchema = z.object({
   kind: z.enum(["announcement", "project_update"]),
   project_id: z.string().trim().optional().transform((v) => v || null).pipe(z.string().uuid().nullable()),
+  donation_form_template_id: z.string().trim().optional().transform((v) => v || null).pipe(z.string().uuid().nullable()),
   subject: z.string().trim().min(1, "Enter a subject").max(150),
   body_html: z.string().trim().min(1, "Write the message").max(50_000),
 });
@@ -36,7 +37,10 @@ export async function saveCampaign(_: AdminState, form: FormData): Promise<Admin
   if (bad.length) return { error: `Unknown variable${bad.length > 1 ? "s" : ""}: ${bad.map((b) => `{{${b}}}`).join(", ")}` };
 
   const db = createSupabaseAdminClient();
-  const row = { kind: content.data.kind, project_id: content.data.project_id, subject: content.data.subject, body_html: body, audience: audience.data };
+  const row = {
+    kind: content.data.kind, project_id: content.data.project_id, donation_form_template_id: content.data.donation_form_template_id,
+    subject: content.data.subject, body_html: body, audience: audience.data,
+  };
   const id = form.get("id");
   if (typeof id === "string" && id) {
     if (!uuid.safeParse(id).success) return { error: "Campaign not found." };

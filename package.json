@@ -14,7 +14,8 @@
     "admin:bootstrap": "tsx --env-file=.env.local scripts/bootstrap-admin.mts",
     "seed:sample": "tsx --env-file=.env.local scripts/seed-sample.mts --yes",
     "admin:create": "tsx --env-file=.env.local scripts/create-admin.mts",
-    "user:create-test": "tsx --env-file=.env.local scripts/create-test-donor.mts"
+    "user:create-test": "tsx --env-file=.env.local scripts/create-test-donor.mts",
+    "import:donorperfect": "tsx --env-file=.env.local scripts/import-donorperfect.mts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -54,6 +55,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "fflate": "^0.8.3",
     "prettier": "^3.9.8",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",

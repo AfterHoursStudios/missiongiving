@@ -9,6 +9,7 @@
   --ink: #14262b;
   --ink-soft: #46595f;
   --line: #cfe0d6;
+  --canvas: #f2f5f7;    /* admin workspace background: cool gray behind white panels */
 
   --brand-50: #eef6e9;
   --brand-500: #478e20;
@@ -38,6 +39,7 @@
 @theme inline {
   --color-paper: var(--paper);
   --color-paper-2: var(--paper-2);
+  --color-canvas: var(--canvas);
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
   --color-line: var(--line);
@@ -76,6 +78,16 @@ body {
 }
 
 h1, h2, h3 { font-family: var(--font-display), Georgia, serif; line-height: 1.15; letter-spacing: -0.01em; }
+/* The admin and donor account areas (.app-shell) are working app screens: plain sans headings, not the public site's display serif. */
+.app-shell :is(h1, h2, h3, .font-display) { font-family: var(--font-body), system-ui, sans-serif; letter-spacing: 0; }
+/* Admin data tables read as white panels with light row rules (CRM list style). Pages that build their own panel mark it data-panel. */
+.app-shell main .overflow-x-auto:has(> table):not([data-panel] *) { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+.app-shell main table thead tr { border-bottom: 1px solid var(--line); }
+.app-shell main table tbody tr:last-child { border-bottom: 0; }
+.app-shell main table tbody tr:hover { background: var(--paper); }
+.app-shell main table :is(th, td):first-child { padding-left: 1rem; }
+.app-shell main table :is(th, td):last-child { padding-right: 1rem; }
+.app-shell main td a:not([class*="bg-"]) { color: var(--teal-600); }
 
 /* Visible, high-contrast keyboard focus (WCAG 2.4.7 / 2.4.11) */
 :focus-visible { outline: 3px solid var(--teal-600); outline-offset: 3px; border-radius: 2px; }
@@ -92,4 +104,32 @@ h1, h2, h3 { font-family: var(--font-display), Georgia, serif; line-height: 1.15
 @media print {
   .no-print { display: none !important; }
   body { background: #fff; }
+}
+
+/* ---------- Home page motion ----------
+   Entrance, drifting shapes, floating photo, scrolling strip and scroll-reveal. All of it is off for visitors who ask
+   their device for reduced motion. Scroll-reveal only hides content once JavaScript has marked the page ready, so
+   nothing is ever hidden if scripts don't run. */
+@keyframes mg-fade-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes mg-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes mg-drift { 0% { transform: translate(0, 0) scale(1); } 33% { transform: translate(30px, -24px) scale(1.08); } 66% { transform: translate(-20px, 18px) scale(0.95); } 100% { transform: translate(0, 0) scale(1); } }
+@keyframes mg-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes mg-gradient { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+
+.mg-enter { animation: mg-fade-up 0.8s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--mg-delay, 0ms); }
+.mg-float { animation: mg-float 7s ease-in-out infinite; }
+.mg-blob { position: absolute; border-radius: 9999px; filter: blur(48px); opacity: .45; animation: mg-drift 18s ease-in-out infinite; pointer-events: none; }
+.mg-marquee { display: flex; width: max-content; animation: mg-marquee 32s linear infinite; }
+.mg-marquee:hover { animation-play-state: paused; }
+.mg-gradient { background-size: 220% 220%; animation: mg-gradient 14s ease-in-out infinite; }
+.mg-lift { transition: transform .3s ease, box-shadow .3s ease; }
+.mg-lift:hover { transform: translateY(-6px); box-shadow: var(--shadow-md); }
+
+.mg-reveal-ready [data-reveal] { opacity: 0; transform: translateY(28px); transition: opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1); transition-delay: var(--mg-delay, 0ms); }
+.mg-reveal-ready [data-reveal][data-visible] { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-enter, .mg-float, .mg-blob, .mg-marquee, .mg-gradient { animation: none !important; }
+  .mg-lift, .mg-lift:hover { transition: none; transform: none; }
+  .mg-reveal-ready [data-reveal] { opacity: 1 !important; transform: none !important; transition: none !important; }
 }

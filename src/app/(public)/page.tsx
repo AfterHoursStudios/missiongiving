@@ -4,6 +4,9 @@ import { getSetting } from "@/lib/settings";
 import { HOME_ALT_KEY, HOME_IMAGE_KEY } from "@/lib/admin/home-image-keys";
 import { listPublicProjects, type PublicProject } from "@/lib/projects/public";
 import { ProjectCard } from "@/components/site/project-card";
+import { ScrollReveal } from "@/components/site/scroll-reveal";
+import { DonateModalButton } from "@/components/donate/donate-modal";
+import { hasDonorAccount, loadDonateSetup } from "@/lib/donations/donate-config";
 
 export const dynamic = "force-dynamic";
 
@@ -11,13 +14,6 @@ async function featuredProjects(): Promise<PublicProject[]> {
   if (!isSupabaseConfigured) return [];
   try { return (await listPublicProjects()).filter((p) => p.featured && p.status !== "completed").slice(0, 3); } catch { return []; }
 }
-
-// Impact statistics are ADMIN-EDITABLE placeholders until approved values are entered (Phase 4 settings UI).
-const impact = [
-  { label: "[Statistic label]", value: "—" },
-  { label: "[Statistic label]", value: "—" },
-  { label: "[Statistic label]", value: "—" },
-];
 
 const faqs = [
   ["Is my gift secure?", "Payments are processed by Stripe. Mission Giving never stores card or bank numbers."],
@@ -37,62 +33,59 @@ async function heroPhoto(): Promise<{ url: string; alt: string } | null> {
 export default async function HomePage() {
   const featured = await featuredProjects();
   const hero = await heroPhoto();
+  // "Donate now" opens the default donation form in a pop-up. If guest checkout is off and the visitor isn't signed in,
+  // it falls back to the /donate page, which asks them to sign in.
+  // Signed-in donors skip the pop-up and give from their account with a saved card (see /dashboard/give).
+  const donate = await hasDonorAccount().catch(() => false)
+    ? { state: "account" as const }
+    : await loadDonateSetup().catch(() => ({ state: "unconfigured" as const }));
+  const donateCls = "inline-flex min-h-12 items-center rounded-full bg-ink px-8 font-semibold text-white hover:bg-ink/85";
+  const pillOutline = "inline-flex min-h-12 items-center rounded-full border border-ink/30 bg-white px-8 font-semibold text-ink hover:border-ink";
   return (
     <>
-      <section className="bg-paper-2">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-[var(--space-section)] md:grid-cols-2">
-          <div>
-            <p className="font-semibold uppercase tracking-wide text-teal-600">Ultimate Mission</p>
-            <h1 className="mt-3 text-4xl font-semibold sm:text-5xl">Give hope. Empower women. Save lives.</h1>
-            <span aria-hidden="true" className="mt-4 block h-1.5 w-20 rounded bg-gold" />
-            <p className="mt-5 max-w-prose text-lg text-ink-soft">
-              Ultimate Mission equips local women as community health workers, caring for infants in rural villages
-              in India, Ethiopia, the Philippines and South Sudan.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-4">
-              <Link href="/donate" className="min-h-12 rounded-md bg-brand-700 px-7 py-3 font-semibold text-white hover:bg-brand-800">Donate now</Link>
-              <Link href="/sponsor" className="min-h-12 rounded-md bg-teal-800 px-7 py-3 font-semibold text-white hover:bg-teal-600">Sponsor a woman</Link>
-              <Link href="/projects" className="min-h-12 rounded-md bg-gold px-7 py-3 font-semibold text-ink hover:brightness-95">See projects</Link>
-            </div>
-          </div>
+      <ScrollReveal />
+      {/* Hero, Nike-style: a full-width photo (shown whole, at its own proportions, never cropped), then a big bold headline and pill buttons centred below. */}
+      <section aria-labelledby="hero-title" className="bg-white">
+        <div className="mx-auto max-w-[90rem] px-0 sm:px-8">
           {hero ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={hero.url} alt={hero.alt} className="aspect-[4/3] w-full object-cover" fetchPriority="high" />
+            <img src={hero.url} alt={hero.alt} className="mg-enter h-auto w-full" fetchPriority="high" />
           ) : (
             // Placeholder until a photo is uploaded in Admin > Settings > Home page photo.
             <div role="img" aria-label="Photo placeholder: community health worker with a mother and infant"
-              className="flex aspect-[4/3] items-center justify-center border-2 border-dashed border-ink-soft text-center text-ink-soft">
+              className="mg-enter flex h-[52vh] min-h-72 w-full items-center justify-center bg-paper-2 text-center text-ink-soft sm:h-[70vh]">
               Approved photo goes here
             </div>
           )}
         </div>
+        <div className="mx-auto max-w-4xl px-4 pb-16 pt-10 text-center sm:pt-14">
+          <h1 id="hero-title" className="mg-enter font-sans text-5xl font-black uppercase leading-[0.9] tracking-tight sm:text-7xl lg:text-8xl [--mg-delay:200ms]">
+            Your generosity.<br />Their opportunity.
+          </h1>
+          <div className="mg-enter mt-8 flex flex-wrap justify-center gap-3 [--mg-delay:440ms]">
+            {donate.state === "ready"
+              ? <DonateModalButton config={donate.config} template={donate.template} className={donateCls}>Donate now</DonateModalButton>
+              : <Link href={donate.state === "account" ? "/dashboard/give" : "/donate"} className={donateCls}>Donate now</Link>}
+            <Link href="/sponsor" className={pillOutline}>Sponsor a woman</Link>
+            <Link href="/projects" className={pillOutline}>See projects</Link>
+          </div>
+        </div>
       </section>
+
 
       {featured.length > 0 && (
         <section className="mx-auto max-w-6xl px-4 pt-[var(--space-section)]" aria-labelledby="featured">
           <h2 id="featured" className="text-3xl font-semibold">Featured projects</h2>
-          <div className="mt-6 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">{featured.map((p) => <ProjectCard key={p.id} p={p} fullSummary />)}</div>
+          <div className="mt-6 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">{featured.map((p, i) => (
+            <div key={p.id} data-reveal className="mg-lift rounded-lg" style={{ "--mg-delay": `${i * 120}ms` } as React.CSSProperties}><ProjectCard p={p} fullSummary /></div>
+          ))}</div>
         </section>
       )}
 
-      <section className="mx-auto max-w-6xl px-4 py-[var(--space-section)]" aria-labelledby="impact">
-        <h2 id="impact" className="text-3xl font-semibold">Our impact</h2>
-        <p className="mt-2 text-ink-soft">Figures below are placeholders until Ultimate Mission enters approved values.</p>
-        <dl className="mt-8 grid gap-8 sm:grid-cols-3">
-          {impact.map((s, i) => (
-            <div key={i} className="flex flex-col-reverse"><dt className="mt-1 text-ink-soft">{s.label}</dt><dd className="font-display text-5xl text-brand-700">{s.value}</dd></div>
-          ))}
-        </dl>
-      </section>
 
-      <section className="mx-auto max-w-6xl px-4 pb-[var(--space-section)]" aria-labelledby="use">
-        <h2 id="use" className="text-3xl font-semibold">How your gift is used</h2>
-        <p role="note" className="mt-2 max-w-prose rounded-md bg-paper-2 p-3 text-sm text-ink-soft">Placeholder: Ultimate Mission will add approved wording and figures here. Nothing on this page states how any amount is spent until they do.</p>
-        <p className="mt-4 max-w-prose text-lg">Gifts to the <strong>General Fund</strong> support Ultimate Mission where it is needed most. Gifts to a <strong>project</strong> are tracked as restricted to that project, and each project page shows the amount raised toward its goal.</p>
-      </section>
 
       <section className="bg-paper-2" aria-labelledby="trust">
-        <div className="mx-auto max-w-6xl px-4 py-[var(--space-section)]">
+        <div data-reveal className="mx-auto max-w-6xl px-4 py-[var(--space-section)]">
           <h2 id="trust" className="text-3xl font-semibold">Trust and transparency</h2>
           <ul className="mt-6 grid gap-6 sm:grid-cols-2">
             <li><strong>Secure payments.</strong> Cards and bank accounts are handled by Stripe. Mission Giving never stores card or bank numbers.</li>
@@ -103,20 +96,16 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="bg-teal-800 text-white">
-        <div className="mx-auto max-w-6xl px-4 py-[var(--space-section)]">
+      <section className="mg-gradient bg-[linear-gradient(120deg,var(--teal-800),var(--teal-600),var(--brand-800),var(--teal-800))] text-white">
+        <div data-reveal className="mx-auto max-w-6xl px-4 py-[var(--space-section)]">
           <h2 className="text-3xl font-semibold">Give monthly</h2>
           <p className="mt-3 max-w-prose text-white/90">Steady gifts let health workers plan ahead. Cancel or change your gift any time from your account.</p>
-          <Link href="/donate?frequency=monthly" className="mt-6 inline-block min-h-12 rounded-md bg-white px-7 py-3 font-semibold text-teal-800">Become a monthly donor</Link>
+          <Link href="/donate?frequency=monthly" className="mg-lift mt-6 inline-block min-h-12 rounded-md bg-white px-7 py-3 font-semibold text-teal-800">Become a monthly donor</Link>
         </div>
       </section>
 
-      <section className="mx-auto max-w-3xl px-4 pt-[var(--space-section)]" aria-labelledby="stories">
-        <h2 id="stories" className="text-3xl font-semibold">Stories</h2>
-        <p role="note" className="mt-3 rounded-md bg-paper-2 p-3 text-sm text-ink-soft">Placeholder: stories from the field will appear here once Ultimate Mission provides approved, consented text and photos. None are invented.</p>
-      </section>
 
-      <section className="mx-auto max-w-3xl px-4 py-[var(--space-section)]" aria-labelledby="faq">
+      <section data-reveal className="mx-auto max-w-3xl px-4 py-[var(--space-section)]" aria-labelledby="faq">
         <h2 id="faq" className="text-3xl font-semibold">Questions</h2>
         <div className="mt-6 divide-y divide-line border-y border-line">
           {faqs.map(([q, a]) => (

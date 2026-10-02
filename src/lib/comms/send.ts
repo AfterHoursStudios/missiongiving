@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { publicEnv, serverEnv } from "@/lib/env";
 import { getOrgSettings } from "@/lib/settings";
+import { isPlaceholderEmail } from "@/lib/admin/dp-import";
 import { audienceSchema, consentBlock, selectRecipients, type CampaignKind } from "./audience";
 import { loadAudienceData } from "./data";
 import { renderCampaignEmail } from "./render";
@@ -81,7 +82,7 @@ async function processBatch(campaign: CampaignRow, size: number): Promise<BatchO
     const p = profiles?.find((x) => x.id === c.donor_id);
     const pr = prefs?.find((x) => x.donor_id === c.donor_id);
     // Consent is re-checked NOW, against current data: an unsubscribe since scheduling always wins.
-    const block = !p || p.deleted_at ? "no_email" : consentBlock({ email: p.email ?? "", status: p.status, marketing_email: pr?.marketing_email ?? false, project_updates: pr?.project_updates ?? false, suppressed: pr?.suppressed ?? false }, campaign.kind, suppressed);
+    const block = !p || p.deleted_at || isPlaceholderEmail(p.email) ? "no_email" : consentBlock({ email: p.email ?? "", status: p.status, marketing_email: pr?.marketing_email ?? false, project_updates: pr?.project_updates ?? false, suppressed: pr?.suppressed ?? false }, campaign.kind, suppressed);
     if (block || !p) { out.skipped++; await db.from("campaign_recipients").update({ status: "skipped", error: block ?? "missing", updated_at: now() }).eq("id", c.id); continue; }
     const rendered = await renderCampaignEmail({
       subject: campaign.subject, bodyHtml: campaign.body_html,

@@ -1,7 +1,7 @@
 export const PERMISSIONS = [
   "donors.view", "donors.edit", "finance.view", "donors.export", "refunds.issue",
   "tiers.manage", "projects.manage", "expenses.record", "reports.view",
-  "comms.send", "staff.manage", "settings.manage", "audit.view",
+  "comms.send", "staff.manage", "settings.manage", "audit.view", "donors.delete",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

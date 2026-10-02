@@ -35,7 +35,7 @@ Dashboard > Settings > Billing > Customer portal: activate it and allow **paymen
 - Set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender). Without them transactional emails are skipped (one log line, no recipient or content) and **campaigns refuse to send**.
 - Campaigns also need `UNSUBSCRIBE_SECRET` (16+ random characters; signs unsubscribe links; **do not rotate casually**, old links would stop working), `CRON_SECRET` (16+ random characters), and the organization's **mailing address** in Settings (required in the footer). `EMAIL_BATCH_SIZE` (default 50, max 100) sets recipients per provider request.
 - Resend dashboard > Webhooks: add `<APP_URL>/api/webhooks/resend` for `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.opened`, `email.clicked`, `email.failed`; put its signing secret in `RESEND_WEBHOOK_SECRET`. Enable open/click tracking on the sending domain if you want those counts.
-- Sending runs from `GET /api/cron/send-campaigns` with `Authorization: Bearer $CRON_SECRET`. `vercel.json` schedules it every 5 minutes (Vercel Cron runs sub-daily schedules only on a paid plan; on the free plan, change the schedule to daily or call the endpoint from another scheduler).
+- Sending runs from `GET /api/cron/send-campaigns` with `Authorization: Bearer $CRON_SECRET`. `vercel.json` runs it once a day (15:00 UTC) for Vercel's free plan; on a paid plan it can run every 5 minutes, or call the endpoint from another scheduler.
 
 ## Scripts
 `npm run lint` · `npm run typecheck` · `npm test` (141 unit tests) · `npm run build` · `npm run test:e2e` (suite added in Phase 7)

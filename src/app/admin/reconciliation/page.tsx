@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { classifyAttention, type ReconDonation, type ReconEvent, type ReconRecurring } from "@/lib/admin/reconcile";
-import { retryWebhook } from "@/lib/admin/finance-actions";
+import { retryWebhook, syncWithStripe } from "@/lib/admin/finance-actions";
 import { SimpleForm } from "@/components/donor/forms";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +34,11 @@ export default async function ReconciliationPage() {
         <Link className="underline" href="/admin/offline-gift">Record offline gift</Link>
       </div>
       <p className="mt-2 max-w-prose text-ink-soft">Records from the last 60 days that need attention. Stripe is the source of truth for payment status; this page helps you notice when the two disagree.</p>
+      <section aria-labelledby="sync" className="mt-6 max-w-2xl rounded-lg border border-line bg-white p-4 shadow-sm">
+        <h2 id="sync" className="text-xl font-semibold">Sync with Stripe</h2>
+        <p className="mt-1 text-sm text-ink-soft">Gifts showing &ldquo;pending&rdquo; after Stripe has taken the payment mean a Stripe notification (webhook) didn&apos;t reach this site. This pulls the last 7 days of payment events from Stripe and applies any that were missed. It&apos;s safe to run any time; it also runs automatically every 15 minutes once the site is deployed.</p>
+        <div className="mt-3"><SimpleForm action={syncWithStripe} submit="Sync now"><input type="hidden" name="days" value="7" /></SimpleForm></div>
+      </section>
       {groups.length === 0 ? <p role="status" className="mt-8 rounded-md bg-success-bg p-6 text-center text-success">Nothing needs attention.</p> : (
         <div className="mt-8 space-y-10">
           {groups.map((g) => (

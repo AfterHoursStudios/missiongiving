@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export interface OrgSettings {
   legal_name: string; brand_name: string; ein: string; mailing_address: string; phone: string; website: string;
+  contact_email: string;
   currency: string; guest_donations_enabled: boolean; custom_amount_enabled: boolean;
   min_donation_cents: number; max_donation_cents: number; public_recognition_enabled: boolean;
   no_goods_or_services_statement: string; tax_acknowledgment: string;
@@ -13,7 +14,7 @@ export interface OrgSettings {
 
 const DEFAULTS: OrgSettings = {
   legal_name: "Ultimate Mission (legal name not yet configured)", brand_name: "Mission Giving", ein: "",
-  mailing_address: "", phone: "", website: "", currency: "USD",
+  mailing_address: "", phone: "", website: "", contact_email: "", currency: "USD",
   guest_donations_enabled: false, custom_amount_enabled: true, min_donation_cents: 500, max_donation_cents: 5_000_000,
   public_recognition_enabled: false, no_goods_or_services_statement: "", tax_acknowledgment: "",
   default_thank_you: "Thank you for your generous gift.", email_sender_name: "Mission Giving", email_reply_to: "",

@@ -1,10 +1,15 @@
+import Link from "next/link";
 import { requirePermission } from "@/lib/auth/session";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { TodoTable, type TodoRow } from "@/components/admin/todo-list";
 import { getOrgSettings } from "@/lib/settings";
 import { formatMoney } from "@/lib/money";
 import { loadDashboardData } from "@/lib/admin/dashboard-data";
 import { SERIES_KEYS, SERIES_TITLES, buildSeries, computeKpis, defaultRange, isSettled, netCents, parseRange, type Kpi, type SeriesKey } from "@/lib/admin/metrics";
 import { ChartCard } from "@/components/admin/chart-card";
 import { PrintButton } from "@/components/admin/print-button";
+import { StatCard } from "@/components/donor/ui";
+import { AlertTriangle, Calendar, Clock, DollarSign, Gift, Landmark, RefreshCw, TrendingUp, UserPlus, Users } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Dashboard" };
@@ -24,9 +29,11 @@ function Change({ k }: { k: Kpi }) {
 }
 
 export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
-  await requirePermission("reports.view");
+  const { user, perms } = await requirePermission("reports.view");
   const sp = await searchParams;
   const settings = await getOrgSettings();
+  const myTodos = perms.has("donors.view") ? await loadMyTodos(user.id) : null;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: settings.timezone });
   const data = await loadDashboardData();
   const now = new Date();
   const range = parseRange(sp.from, sp.to, defaultRange(now, settings.timezone));
@@ -45,22 +52,36 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
         <h1 className="text-3xl font-semibold">Dashboard</h1>
         <PrintButton />
       </div>
+      {myTodos && (
+        <section data-panel aria-labelledby="my-todos" className="mt-6 rounded-lg border border-line bg-white shadow-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4">
+            <h2 id="my-todos" className="text-2xl font-bold">My to-dos</h2>
+            <span className="text-sm text-ink-soft">{myTodos.length} open · add one with <span className="font-semibold">Add New → To-do</span> or from a donor row</span>
+          </div>
+          <div className="mt-3 overflow-x-auto border-t border-line">
+            {myTodos.length === 0
+              ? <p className="px-4 py-8 text-center text-ink-soft">Nothing assigned to you. <Link className="text-teal-600 underline" href="/admin/donors">Go to donors</Link></p>
+              : <TodoTable todos={myTodos} canEdit={perms.has("donors.edit")} showDonor today={today} />}
+          </div>
+        </section>
+      )}
+
       <p className="mt-2 text-sm text-ink-soft">Figures count settled gifts net of refunds. Pending, failed, disputed and canceled gifts are excluded.</p>
 
-      <dl className="mt-8 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
-        {([["Donations today", k.today], ["Donations this month", k.month], ["Donations this year", k.year]] as const).map(([label, v]) => (
-          <div key={label}><dt className="text-sm text-ink-soft">{label}</dt><dd className="font-display text-3xl font-semibold text-brand-800">{money(v.current)}</dd><Change k={v} /></div>
-        ))}
-        <Metric label="Average donation (this year)" value={money(k.averageDonationCents)} />
-        <Metric label="Active recurring donors" value={k.activeRecurringDonors} />
-        <Metric label="Monthly recurring value" value={money(k.monthlyRecurringCents)} />
-        <Metric label="Yearly recurring value" value={money(k.yearlyRecurringCents)} />
-        <Metric label="Total project funding" value={money(totalProjectFunding)} />
-        <Metric label="New donors this month" value={k.newDonorsThisMonth} />
-        <Metric label="Returning donors this month" value={k.returningDonorsThisMonth} />
-        <Metric label="Failed or past-due recurring" value={k.pastDueRecurring} alert={k.pastDueRecurring > 0} />
-        <Metric label="Pending ACH" value={`${k.pendingAch.count} · ${money(k.pendingAch.cents)}`} />
-      </dl>
+      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <StatCard icon={Clock} tone="teal" label="Donations today" value={money(k.today.current)} hint={<Change k={k.today} />} />
+        <StatCard icon={Calendar} tone="teal" label="Donations this month" value={money(k.month.current)} hint={<Change k={k.month} />} />
+        <StatCard icon={TrendingUp} tone="teal" label="Donations this year" value={money(k.year.current)} hint={<Change k={k.year} />} />
+        <StatCard icon={DollarSign} tone="brand" label="Average donation (this year)" value={money(k.averageDonationCents)} />
+        <StatCard icon={RefreshCw} tone="brand" label="Active recurring donors" value={k.activeRecurringDonors} />
+        <StatCard icon={RefreshCw} tone="brand" label="Monthly recurring value" value={money(k.monthlyRecurringCents)} />
+        <StatCard icon={RefreshCw} tone="brand" label="Yearly recurring value" value={money(k.yearlyRecurringCents)} />
+        <StatCard icon={Gift} tone="gold" label="Total project funding" value={money(totalProjectFunding)} />
+        <StatCard icon={UserPlus} tone="success" label="New donors this month" value={k.newDonorsThisMonth} />
+        <StatCard icon={Users} tone="success" label="Returning donors this month" value={k.returningDonorsThisMonth} />
+        <StatCard icon={AlertTriangle} tone={k.pastDueRecurring > 0 ? "danger" : "brand"} label="Failed or past-due recurring" value={k.pastDueRecurring} />
+        <StatCard icon={Landmark} tone="gold" label="Pending ACH" value={`${k.pendingAch.count} · ${money(k.pendingAch.cents)}`} />
+      </div>
 
       <div className="mt-10 grid gap-10 md:grid-cols-2">
         <section aria-labelledby="recent">
@@ -99,6 +120,21 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
   );
 }
 
-function Metric({ label, value, alert }: { label: string; value: React.ReactNode; alert?: boolean }) {
-  return <div><dt className="text-sm text-ink-soft">{label}</dt><dd className={`font-display text-3xl font-semibold ${alert ? "text-danger" : "text-brand-800"}`}>{value}</dd></div>;
+/** Open to-dos assigned to this staff member, soonest due first. Null when the to-do table isn't set up (migration 0014). */
+async function loadMyTodos(userId: string): Promise<TodoRow[] | null> {
+  const db = createSupabaseAdminClient();
+  const { data, error } = await db.from("donor_todos")
+    .select("id, donor_id, activity, due_date, due_time, notes, completed_at, title, donor_profiles(first_name, last_name)")
+    .eq("assigned_to", userId).is("completed_at", null).order("due_date").order("due_time", { nullsFirst: false }).limit(50);
+  if (error) {
+    // Before migration 0019 there is no title column: retry without it so donor to-dos still show.
+    const legacy = await db.from("donor_todos").select("id, donor_id, activity, due_date, due_time, notes, completed_at, donor_profiles(first_name, last_name)")
+      .eq("assigned_to", userId).is("completed_at", null).order("due_date").limit(50);
+    if (legacy.error) return null;
+    return (legacy.data ?? []).map((t) => { const d = Array.isArray(t.donor_profiles) ? t.donor_profiles[0] : t.donor_profiles; return { ...t, assignee: "Me", donor_name: d ? `${d.first_name} ${d.last_name}` : null }; });
+  }
+  return (data ?? []).map((t) => {
+    const d = Array.isArray(t.donor_profiles) ? t.donor_profiles[0] : t.donor_profiles;
+    return { ...t, assignee: "Me", donor_name: d ? `${d.first_name} ${d.last_name}` : null };
+  });
 }

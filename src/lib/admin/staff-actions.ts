@@ -99,3 +99,41 @@ export async function saveRolePermissions(_: AdminState, form: FormData): Promis
   revalidatePath("/admin/staff/roles");
   return { ok: true, message: "Permissions saved. They apply on the person's next request." };
 }
+
+/**
+ * "Change role" pop-up: sets a staff member's roles to exactly the ticked ones. Applies only the differences, with the
+ * same rules as assignRole: only a Super Admin may grant or remove Super Admin, and the last active Super Admin stays.
+ */
+export async function setStaffRoles(_: AdminState, form: FormData): Promise<AdminState> {
+  const { user } = await requirePermission("staff.manage");
+  const userId = uuid.safeParse(form.get("userId"));
+  const wanted = z.array(uuid).safeParse(form.getAll("roleId"));
+  if (!userId.success || !wanted.success) return { error: "Invalid request." };
+  const db = createSupabaseAdminClient();
+  const [{ data: s }, { data: roles }, { data: current }] = await Promise.all([
+    db.from("staff_profiles").select("user_id").eq("user_id", userId.data).maybeSingle(),
+    db.from("roles").select("id, key"),
+    db.from("staff_role_assignments").select("role_id").eq("user_id", userId.data),
+  ]);
+  if (!s) return { error: "Staff member not found." };
+  const keyOf = new Map((roles ?? []).map((r) => [r.id as string, r.key as string]));
+  if (wanted.data.some((id) => !keyOf.has(id))) return { error: "Role not found." };
+  const have = new Set((current ?? []).map((r) => r.role_id as string));
+  const want = new Set(wanted.data);
+  const adds = [...want].filter((id) => !have.has(id));
+  const removes = [...have].filter((id) => !want.has(id));
+  if (adds.length === 0 && removes.length === 0) return { ok: true, message: "No changes." };
+
+  const actorIsSuper = await isSuperAdmin(user.id);
+  if ([...adds, ...removes].some((id) => !canManageRole(actorIsSuper, keyOf.get(id)!))) return { error: "Only a Super Admin can change the Super Admin role." };
+  if (removes.some((id) => keyOf.get(id) === "super_admin") && wouldRemoveLastSuperAdmin(await superAdminIds(), userId.data)) {
+    return { error: "You cannot remove the last active Super Admin." };
+  }
+
+  if (removes.length) await db.from("staff_role_assignments").delete().eq("user_id", userId.data).in("role_id", removes);
+  if (adds.length) await db.from("staff_role_assignments").upsert(adds.map((role_id) => ({ user_id: userId.data, role_id, assigned_by: user.id })));
+  for (const id of adds) await audit(user.id, "permissions.change", "staff", userId.data, { op: "add", role: keyOf.get(id) });
+  for (const id of removes) await audit(user.id, "permissions.change", "staff", userId.data, { op: "remove", role: keyOf.get(id) });
+  revalidatePath("/admin/staff");
+  return { ok: true, message: "Roles updated." };
+}

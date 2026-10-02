@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import { formatMoney } from "@/lib/money";
+import { orgText } from "@/lib/statements-pdf";
 
 export interface ReceiptData {
   receiptNumber: string; isFinal: boolean; status: string;
@@ -20,8 +21,9 @@ export function renderReceiptPdf(r: ReceiptData): Promise<Buffer> {
     doc.on("error", reject);
 
     doc.fontSize(20).text(r.org.legalName);
-    doc.fontSize(10).fillColor("#444").text(r.org.address).text(r.org.phone);
-    doc.text(r.org.ein ? `EIN: ${r.org.ein}` : "EIN: [not configured]");
+    doc.fontSize(10).fillColor("#444");
+    // Unfilled organization details are left off (see orgText), never printed as placeholders.
+    for (const line of [orgText(r.org.address), orgText(r.org.phone), orgText(r.org.ein) && `EIN: ${orgText(r.org.ein)}`]) if (line) doc.text(line);
     doc.moveDown(1.5).fillColor("#000").fontSize(16).text(r.isFinal ? "Donation Receipt" : "Donation Acknowledgment: PAYMENT PENDING");
     if (!r.isFinal) doc.fontSize(10).fillColor("#a3221a").text("This is not a final receipt. The payment has not yet settled. A final receipt is issued once it is confirmed.").fillColor("#000");
     doc.moveDown();
@@ -36,8 +38,7 @@ export function renderReceiptPdf(r: ReceiptData): Promise<Buffer> {
 
     doc.moveDown(1.5).font("Helvetica").fontSize(10);
     if (r.isFinal) {
-      doc.text(r.org.noGoods || "[No goods or services statement not configured]").moveDown(0.5);
-      doc.text(r.org.acknowledgment || "[Acknowledgment language pending Ultimate Mission approval]");
+      for (const t of [orgText(r.org.noGoods), orgText(r.org.acknowledgment)]) if (t) doc.text(t).moveDown(0.5);
     }
     doc.end();
   });

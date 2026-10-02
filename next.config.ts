@@ -20,6 +20,9 @@ const csp = [
   "frame-ancestors 'none'",
 ].join("; ");
 
+// Embedded donation forms (/embed/*) may be shown inside any website's frame; nothing else may be framed.
+const embedCsp = csp.replace("frame-ancestors 'none'", "frame-ancestors *");
+
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -36,7 +39,13 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: "30mb" } },
   async headers() {
     return [
-      { source: "/:path*", headers: securityHeaders },
+      // Every page except /embed/*: never framed (clickjacking protection).
+      { source: "/((?!embed(?:/|$)).*)", headers: securityHeaders },
+      // /embed/*: the same protections, but other sites may frame it (no X-Frame-Options, frame-ancestors *).
+      {
+        source: "/embed/:path*",
+        headers: [{ key: "Content-Security-Policy", value: embedCsp }, ...securityHeaders.filter((h) => h.key !== "Content-Security-Policy" && h.key !== "X-Frame-Options")],
+      },
       // Private areas must never be indexed.
       {
         source: "/(admin|dashboard|sign-in|register|reset-password|receipts|auth|unsubscribe)/:path*",

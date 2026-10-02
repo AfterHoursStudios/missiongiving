@@ -3,11 +3,13 @@ import { saveCampaign } from "@/lib/comms/campaign-actions";
 import type { AudienceFilters } from "@/lib/comms/audience";
 
 export interface CampaignValues {
-  id?: string; kind?: string; project_id?: string | null; subject?: string; body_html?: string; audience?: Partial<AudienceFilters> | null;
+  id?: string; kind?: string; project_id?: string | null; donation_form_template_id?: string | null; subject?: string; body_html?: string; audience?: Partial<AudienceFilters> | null;
 }
 const sel = "mt-1.5 min-h-12 w-full rounded-md border border-ink-soft bg-white px-2";
 
-export function CampaignForm({ campaign, projects, tags }: { campaign?: CampaignValues; projects: { id: string; title: string }[]; tags: { id: string; name: string }[] }) {
+export function CampaignForm({ campaign, projects, tags, formTemplates = [] }: {
+  campaign?: CampaignValues; projects: { id: string; title: string }[]; tags: { id: string; name: string }[]; formTemplates?: { id: string; name: string }[];
+}) {
   const c = campaign ?? { kind: "announcement" };
   const a = c.audience ?? {};
   return (
@@ -24,6 +26,12 @@ export function CampaignForm({ campaign, projects, tags }: { campaign?: Campaign
           </select></div>
         <div><label htmlFor="project_id" className="block font-semibold">Related project (optional; fills {"{{project_name}}"})</label>
           <select id="project_id" name="project_id" defaultValue={c.project_id ?? ""} className={sel}><option value="">None</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</select></div>
+        <div><label htmlFor="donation_form_template_id" className="block font-semibold">Donation form for this campaign&apos;s links (optional)</label>
+          <select id="donation_form_template_id" name="donation_form_template_id" defaultValue={c.donation_form_template_id ?? ""} className={sel}>
+            <option value="">Use the related project&apos;s form, or the default</option>
+            {formTemplates.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+          <p className="text-sm text-ink-soft">Only used if the message links to <code>/donate?campaign={c.id ?? "…"}</code> instead of the project page (the campaign&apos;s id is shown once it is saved).</p></div>
         <fieldset><legend className="font-semibold">Recurring donors</legend>
           <label className="mr-6"><input type="checkbox" name="frequencies" value="monthly" defaultChecked={a.frequencies?.includes("monthly")} className="mr-2 size-5 align-middle" />Monthly donors</label>
           <label><input type="checkbox" name="frequencies" value="yearly" defaultChecked={a.frequencies?.includes("yearly")} className="mr-2 size-5 align-middle" />Yearly donors</label></fieldset>

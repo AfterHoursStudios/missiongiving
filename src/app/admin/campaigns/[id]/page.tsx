@@ -25,10 +25,11 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   const { data: c } = await db.from("communication_campaigns").select("*").eq("id", id).maybeSingle();
   if (!c) notFound();
   const settings = await getOrgSettings();
-  const [{ data: projects }, { data: tags }, { data: who }] = await Promise.all([
+  const [{ data: projects }, { data: tags }, { data: who }, { data: forms }] = await Promise.all([
     db.from("projects").select("id, title").neq("status", "archived").order("title"),
     db.from("donor_tags").select("id, name").order("name"),
     db.from("profiles").select("id, email").in("id", [c.authorized_by, c.created_by].filter(Boolean)),
+    db.from("donation_form_templates").select("id, name").eq("status", "active").order("name"),
   ]);
   const email = (uid: string | null) => who?.find((w) => w.id === uid)?.email ?? "—";
   const draft = c.status === "draft";
@@ -40,18 +41,21 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
       <p className="text-ink-soft">Status: <strong>{c.status}</strong> · created by {email(c.created_by)}{c.authorized_by ? ` · authorized by ${email(c.authorized_by)}` : ""}{c.scheduled_for ? ` · ${c.status === "scheduled" ? "scheduled for" : "started"} ${new Date(c.scheduled_for).toLocaleString("en-US", { timeZone: settings.timezone })}` : ""}</p>
       {c.last_error && <p role="alert" className="mt-3 rounded-md bg-danger-bg p-3 text-danger">{c.last_error}</p>}
 
-      {draft ? <Draft c={c} projects={projects ?? []} tags={tags ?? []} settings={settings} /> : <Delivery c={c} settings={settings} />}
+      {draft ? <Draft c={c} projects={projects ?? []} tags={tags ?? []} forms={forms ?? []} settings={settings} /> : <Delivery c={c} settings={settings} />}
     </>
   );
 }
 
-async function Draft({ c, projects, tags, settings }: { c: { id: string; kind: "announcement" | "project_update"; audience: unknown; subject: string; body_html: string; project_id: string | null }; projects: { id: string; title: string }[]; tags: { id: string; name: string }[]; settings: Awaited<ReturnType<typeof getOrgSettings>> }) {
+async function Draft({ c, projects, tags, forms, settings }: {
+  c: { id: string; kind: "announcement" | "project_update"; audience: unknown; subject: string; body_html: string; project_id: string | null; donation_form_template_id: string | null };
+  projects: { id: string; title: string }[]; tags: { id: string; name: string }[]; forms: { id: string; name: string }[]; settings: Awaited<ReturnType<typeof getOrgSettings>>;
+}) {
   const [preview, problems] = await Promise.all([previewAudience(c), sendingProblems()]);
   const previewHtml = sanitizeEmailHtml(fillTemplate(c.body_html, { ...SAMPLE_VARS, organization_name: settings.brand_name }, "html"));
   const excludedTotal = Object.entries(preview.excluded).filter(([, n]) => n > 0);
   return (
     <>
-      <div className="mt-8 max-w-2xl"><CampaignForm campaign={{ ...c, audience: c.audience as never }} projects={projects} tags={tags} /></div>
+      <div className="mt-8 max-w-2xl"><CampaignForm campaign={{ ...c, audience: c.audience as never }} projects={projects} tags={tags} formTemplates={forms} /></div>
 
       <section aria-labelledby="aud" className="mt-12 max-w-2xl">
         <h2 id="aud" className="text-2xl font-semibold">3. Recipients</h2>

@@ -20,7 +20,9 @@ const rel = (f: string) => relative(".", f).split(sep).join("/");
 const read = (f: string) => readFileSync(f, "utf8");
 
 // Public-by-design server actions (they authenticate the *caller* themselves, or must work signed out).
-const PUBLIC_ACTIONS = new Set(["registerAction", "signInAction", "magicLinkAction", "resetPasswordAction", "signOutAction"]);
+// startCheckout: guest checkout is intentional (one-time gifts only — see its own frequency check); it still calls
+// getUser() to identify an existing session when there is one, and never trusts a signed-in caller's submitted email.
+const PUBLIC_ACTIONS = new Set(["registerAction", "signInAction", "magicLinkAction", "resetPasswordAction", "signOutAction", "startCheckout"]);
 const GUARD = /(requirePermission|requireUser|getDonorContext|ownRecurring)\(/;
 
 describe("every server action checks who is calling", () => {
@@ -56,6 +58,7 @@ describe("machine endpoints authenticate the sender", () => {
     "src/app/api/webhooks/resend/route.ts": /verifySvixSignature\(/,
     "src/app/api/cron/send-campaigns/route.ts": /isAuthorizedCron\(/,
     "src/app/api/cron/retention/route.ts": /isAuthorizedCron\(/,
+    "src/app/api/cron/stripe-sync/route.ts": /isAuthorizedCron\(/,
     "src/lib/cron.ts": /timingSafeEqual\(/,
     "src/app/api/unsubscribe/route.ts": /readToken\(/,
   };

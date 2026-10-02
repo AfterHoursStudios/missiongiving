@@ -25,7 +25,8 @@ Tick every box before taking real donations. Items marked **[open]** are known g
 - [ ] Resend domain verified (SPF, DKIM, DMARC); webhook set; sender address chosen.
 - [ ] All environment variables set in Vercel Production; **test keys nowhere in Production**; `.env.local` never committed.
 - [ ] `UNSUBSCRIBE_SECRET` and `CRON_SECRET` generated (16+ random characters) and stored in a password manager.
-- [ ] Cron jobs running (check Vercel logs for `/api/cron/send-campaigns` and `/api/cron/retention`).
+- [ ] Cron jobs running (check Vercel logs for `/api/cron/send-campaigns`, `/api/cron/retention`, and `/api/cron/expiring-cards`).
+- [ ] Organization contact email set in Settings (recipient of the expiring-cards digest; the job silently skips sending without it).
 - [ ] Initial Super Admin created by invitation; a second Super Admin exists (so one lost account cannot lock the organization out).
 - [ ] Custom domain with HTTPS; `NEXT_PUBLIC_APP_URL` matches it; auth redirect URLs updated.
 - [ ] Sample/seed data absent from production (`scripts/seed-sample.mts` refuses live Stripe keys, but do not run it there at all).

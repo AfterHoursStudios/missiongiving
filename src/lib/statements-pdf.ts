@@ -2,6 +2,15 @@ import PDFDocument from "pdfkit";
 import { formatMoney } from "@/lib/money";
 import type { Statement } from "@/lib/statements";
 
+/**
+ * Organization wording for receipts and statements, or null when it hasn't been filled in yet: blank, or still the
+ * "PLACEHOLDER …" text the settings were seeded with. Unfilled lines are left off the PDF, never printed as placeholders.
+ */
+export function orgText(v: string | null | undefined): string | null {
+  const t = (v ?? "").trim();
+  return !t || /^\[?placeholder\b/i.test(t) ? null : t;
+}
+
 export interface StatementOrg { legalName: string; address: string; ein: string; phone: string; acknowledgment: string; noGoods: string }
 
 export function renderStatementPdf(s: Statement, donorName: string, currency: string, org: StatementOrg, timeZone: string): Promise<Buffer> {
@@ -13,7 +22,8 @@ export function renderStatementPdf(s: Statement, donorName: string, currency: st
     doc.on("error", reject);
 
     doc.fontSize(20).text(org.legalName);
-    doc.fontSize(10).fillColor("#444").text(org.address).text(org.phone).text(org.ein ? `EIN: ${org.ein}` : "EIN: [not configured]");
+    doc.fontSize(10).fillColor("#444");
+    for (const line of [orgText(org.address), orgText(org.phone), orgText(org.ein) && `EIN: ${orgText(org.ein)}`]) if (line) doc.text(line);
     doc.moveDown(1.5).fillColor("#000").fontSize(16).text(`${s.year} Annual Giving Statement`);
     doc.fontSize(11).text(`Prepared for: ${donorName}`).moveDown();
 
@@ -29,9 +39,8 @@ export function renderStatementPdf(s: Statement, donorName: string, currency: st
     }
     doc.moveDown().font("Helvetica-Bold").fontSize(12).text(`Total: ${formatMoney(s.totalCents, currency)}`, { align: "right" });
     doc.font("Helvetica").fontSize(9).fillColor("#444").moveDown()
-      .text("Includes only settled gifts, net of refunds. Pending, failed, canceled and disputed payments are excluded.")
-      .moveDown(0.5).text(org.noGoods || "[No goods or services statement not configured]")
-      .moveDown(0.5).text(org.acknowledgment || "[Acknowledgment language pending Ultimate Mission approval]");
+      .text("Includes only settled gifts, net of refunds. Pending, failed, canceled and disputed payments are excluded.");
+    for (const t of [orgText(org.noGoods), orgText(org.acknowledgment)]) if (t) doc.moveDown(0.5).text(t);
 
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {

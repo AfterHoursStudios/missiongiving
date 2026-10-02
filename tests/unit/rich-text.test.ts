@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SUMMARY_MAX, formatRichText, projectSchema, sanitizeStory } from "@/lib/admin/project-schema";
+import { SUMMARY_MAX, formatRichText, htmlToEditableText, projectSchema, sanitizeStory } from "@/lib/admin/project-schema";
 
 describe("formatRichText (keeps the formatting staff type)", () => {
   it("turns blank lines into paragraphs and single Enters into line breaks", () => {
@@ -21,6 +21,16 @@ describe("formatRichText (keeps the formatting staff type)", () => {
     expect(sanitizeStory(formatRichText("Hi\n\n<script>alert(1)</script>"))).not.toMatch(/<script/i);
     const saved = projectSchema.parse({ title: "T", status: "draft", story_html: "Para one & more.\n\nPara two\nnext line" }).story_html!;
     expect(sanitizeStory(formatRichText(saved))).toBe("<p>Para one &amp; more.</p><p>Para two<br />next line</p>");
+  });
+});
+
+describe("htmlToEditableText (the inverse of formatRichText, for re-editing a template as plain text)", () => {
+  it("round-trips formatRichText's own output exactly, including a bulleted list", () => {
+    for (const text of ["First paragraph.\n\nSecond line one\nsecond line two", "Intro\n\n- one\n- two\n- three", "Just one line"])
+      expect(htmlToEditableText(formatRichText(text))).toBe(text);
+  });
+  it("collapses other HTML (e.g. a seeded template) to reasonably readable plain text", () => {
+    expect(htmlToEditableText("<p>Hello {{donor_first_name}}, please verify your email.</p>")).toBe("Hello {{donor_first_name}}, please verify your email.");
   });
 });
 

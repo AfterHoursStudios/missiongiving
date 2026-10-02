@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { StatusDot } from "@/components/donor/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Campaigns" };
@@ -24,7 +25,7 @@ export default async function CampaignsPage() {
             <tr key={c.id} className="border-b border-line">
               <td className="py-3 pr-4"><Link className="font-semibold underline" href={`/admin/campaigns/${c.id}`}>{c.subject}</Link></td>
               <td className="py-3 pr-4">{c.kind === "project_update" ? "Project update" : "Announcement"}</td>
-              <td className="py-3 pr-4">{c.status}</td>
+              <td className="py-3 pr-4"><StatusDot status={c.status} /></td>
               <td className="py-3 pr-4">{c.recipient_count ?? "—"}</td>
               <td className="py-3">{new Date(c.sent_at ?? c.scheduled_for ?? c.created_at).toLocaleString("en-US")}</td>
             </tr>))}</tbody></table></div>

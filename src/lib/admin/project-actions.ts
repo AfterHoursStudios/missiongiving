@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { formatMoney } from "@/lib/money";
-import { isPubliclyListed, offlineAdjustmentSchema, projectSchema, projectToRow, sanitizeStory } from "./project-schema";
+import { PROJECT_STATUSES, isPubliclyListed, offlineAdjustmentSchema, projectSchema, projectToRow, sanitizeStory } from "./project-schema";
 import type { AdminState } from "./donor-actions";
 import { applyImageChanges, loadExistingImages, removeImages } from "./project-images";
 
@@ -94,3 +94,21 @@ export async function adjustOffline(_: AdminState, form: FormData): Promise<Admi
   return { ok: true, message: "Adjustment recorded and audited." };
 }
 
+
+/** "Change status" pop-up on the Projects list: sets one project's status without opening its full edit form. */
+export async function setProjectStatus(_: AdminState, form: FormData): Promise<AdminState> {
+  const { user } = await requirePermission("projects.manage");
+  const p = z.object({ id: z.string().uuid(), status: z.enum(PROJECT_STATUSES) }).safeParse({ id: form.get("id"), status: form.get("status") });
+  if (!p.success) return { error: "Choose a status." };
+  const db = createSupabaseAdminClient();
+  const { data: before } = await db.from("projects").select("status, is_public, slug, kind").eq("id", p.data.id).maybeSingle();
+  if (!before || before.kind === "sponsorship") return { error: "Project not found." };
+  if (before.status === p.data.status) return { ok: true, message: "No change." };
+  const { error } = await db.from("projects").update({ status: p.data.status }).eq("id", p.data.id);
+  if (error) return { error: "Could not change the status." };
+  const after = { is_public: before.is_public, status: p.data.status };
+  await audit(user.id, isPubliclyListed(after) && !isPubliclyListed(before) ? "project.publish" : "settings.change", "project", p.data.id, { status_from: before.status, status_to: p.data.status });
+  revalidatePath("/admin/projects"); revalidatePath("/projects"); revalidatePath(`/projects/${before.slug}`); revalidatePath("/");
+  const live = ["active", "goal_reached", "completed"].includes(p.data.status);
+  return { ok: true, message: live && !before.is_public ? "Status changed. This project is not public yet, so visitors can't see it — open it and tick Public." : "Status changed." };
+}

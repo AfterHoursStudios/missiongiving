@@ -2,7 +2,9 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { formatMoney } from "@/lib/money";
-import { sponsoredProjectIds } from "@/lib/sponsor/sponsored";
+import { sponsorsByProject } from "@/lib/sponsor/sponsored";
+import { remainingCents } from "@/lib/sponsor/holds";
+import { StatusDot } from "@/components/donor/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Sponsorships" };
@@ -11,7 +13,13 @@ export default async function SponsorshipsPage() {
   await requirePermission("projects.manage");
   const { data, error } = await createSupabaseAdminClient().from("sponsorships")
     .select("id, project_id, name, country, monthly_amount_cents, status, photo_url, display_order").neq("status", "archived").order("display_order").order("name");
-  const taken = error ? new Set<string>() : await sponsoredProjectIds();
+  const sponsors = error ? new Map<string, { name: string; amountCents: number }[]>() : await sponsorsByProject();
+  const sponsorLine = (pid: string, total: number) => {
+    const list = sponsors.get(pid) ?? [];
+    if (!list.length) return null;
+    const left = remainingCents(total, list.reduce((n, x) => n + x.amountCents, 0));
+    return { text: list.map((x) => `${x.name} (${formatMoney(x.amountCents)})`).join(", "), left };
+  };
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -28,7 +36,15 @@ export default async function SponsorshipsPage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={s.photo_url} alt="" className="size-14 rounded-full object-cover" />
                 : <span aria-hidden="true" className="size-14 rounded-full bg-paper-2" />}
-              <span className="flex-1"><Link className="font-semibold underline" href={`/admin/sponsorships/${s.id}`}>{s.name}</Link>{s.country && <span className="text-ink-soft"> · {s.country}</span>}<span className="block text-sm text-ink-soft">{formatMoney(s.monthly_amount_cents)} per month · {s.status}{taken.has(s.project_id) && <strong className="text-brand-800"> · Sponsored (hidden from the public page)</strong>}</span></span>
+              <span className="flex-1"><Link className="font-semibold underline" href={`/admin/sponsorships/${s.id}`}>{s.name}</Link>{sponsorLine(s.project_id, s.monthly_amount_cents) && <span className="text-brand-800"> (sponsored by {sponsorLine(s.project_id, s.monthly_amount_cents)!.text})</span>}{s.country && <span className="text-ink-soft"> · {s.country}</span>}
+                <span className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
+                  <StatusDot status={s.status} />
+                  <span>· {formatMoney(s.monthly_amount_cents)} per month</span>
+                  {sponsorLine(s.project_id, s.monthly_amount_cents) && (sponsorLine(s.project_id, s.monthly_amount_cents)!.left > 0
+                    ? <strong className="text-brand-800">· Partly sponsored, {formatMoney(sponsorLine(s.project_id, s.monthly_amount_cents)!.left)} per month still open (shown on the public page)</strong>
+                    : <strong className="text-brand-800">· Fully sponsored (hidden from the public page)</strong>)}
+                </span>
+              </span>
             </li>))}
         </ul>
       )}

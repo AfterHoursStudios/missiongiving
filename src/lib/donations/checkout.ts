@@ -17,7 +17,11 @@ export const checkoutSchema = z.object({
   donor: z.object({
     firstName: z.string().trim().min(1).max(80),
     lastName: z.string().trim().min(1).max(80),
+    // Required from every donor so a guest can check out with no account. For a signed-in donor the server always
+    // uses their verified account email instead of trusting this value (see startCheckout).
+    email: z.string().trim().toLowerCase().email("Enter a valid email"),
     phone: z.string().trim().max(30).optional().or(z.literal("")),
+    organizationName: z.string().trim().max(120).optional().or(z.literal("")),
     address: z.object({
       line1: z.string().trim().max(120).optional(), city: z.string().trim().max(80).optional(),
       region: z.string().trim().max(80).optional(), postalCode: z.string().trim().max(20).optional(),
@@ -31,6 +35,10 @@ export const checkoutSchema = z.object({
     message: z.string().trim().max(500).optional(),
   }).nullable(),
   note: z.string().trim().max(1000).optional(),
+  // Giving from the donor's account page: charge a card/bank account already saved on their Stripe customer (checked
+  // on the server), and leave their saved profile and email choices as they are (that page doesn't ask for them).
+  paymentMethodId: z.string().regex(/^pm_[A-Za-z0-9]+$/).optional(),
+  fromAccount: z.boolean().optional(),
 });
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 
@@ -68,12 +76,21 @@ export function resolveAmount(
 }
 
 /**
- * Sponsorship gifts use the woman's fixed monthly amount, decided on the server (never the browser). Monthly or one-time only.
+ * One-time sponsorship gifts use the woman's full monthly amount. A monthly gift may be any amount up to what she still needs
+ * (a partial sponsorship), never below the site minimum unless the little that remains is smaller. Decided on the server, never the browser.
  */
 export function resolveSponsorship(
   frequency: Frequency, sponsorship: { status: string; monthly_amount_cents: number } | null,
+  opts?: { remainingCents: number; requestedCents: number | null; minCents: number },
 ): { ok: true; amountCents: number; tierId: null } | { ok: false; error: string } {
   if (!sponsorship || sponsorship.status !== "active") return { ok: false, error: "This sponsorship is not available." };
   if (frequency === "yearly") return { ok: false, error: "Sponsorships can be given monthly or as a one-time gift." };
+  if (frequency === "monthly" && opts) {
+    if (opts.remainingCents <= 0) return { ok: false, error: "This woman is fully sponsored. Please choose another woman." };
+    const amount = opts.requestedCents ?? opts.remainingCents;
+    if (amount > opts.remainingCents) return { ok: false, error: "That is more than she still needs each month." };
+    if (amount < Math.min(opts.minCents, opts.remainingCents)) return { ok: false, error: "That amount is below the minimum." };
+    return { ok: true, amountCents: amount, tierId: null };
+  }
   return { ok: true, amountCents: sponsorship.monthly_amount_cents, tierId: null };
 }

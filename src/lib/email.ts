@@ -1,6 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
 import { serverEnv } from "@/lib/env";
+import { isPlaceholderEmail } from "@/lib/admin/dp-import";
 
 export interface OutgoingEmail {
   to: string; subject: string; html: string; text: string;
@@ -14,6 +15,8 @@ export interface OutgoingEmail {
  * never the recipient or content.
  */
 export async function sendEmail(msg: OutgoingEmail): Promise<{ id: string | null; skipped: boolean }> {
+  // Imported donors without an email have an internal placeholder address; never try to send to it.
+  if (isPlaceholderEmail(msg.to)) return { id: null, skipped: true };
   const { RESEND_API_KEY, EMAIL_FROM_ADDRESS } = serverEnv();
   if (!RESEND_API_KEY || !EMAIL_FROM_ADDRESS) {
     console.info("[email] skipped: RESEND_API_KEY / EMAIL_FROM_ADDRESS not configured");

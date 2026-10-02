@@ -5,7 +5,7 @@ import { formatMoney } from "@/lib/money";
 import { yearInZone } from "@/lib/statements";
 import { STATUS_LABELS, isReceiptFinal, type DonationStatus } from "@/lib/donations/status";
 import { filterContributions, type ContributionRow } from "@/lib/donor/contributions";
-import { Empty, FREQUENCY_LABEL, METHOD_LABEL, StatusBadge } from "@/components/donor/ui";
+import { Empty, FREQUENCY_LABEL, METHOD_LABEL, Panel, StatusBadge } from "@/components/donor/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Contributions" };
@@ -47,52 +47,56 @@ export default async function ContributionsPage({ searchParams }: { searchParams
   return (
     <>
       <h1 className="text-3xl font-semibold">Contributions</h1>
-      <form method="get" className="mt-6 flex flex-wrap items-end gap-3" role="search" aria-label="Filter contributions">
-        <div><label htmlFor="q" className="block text-sm font-semibold">Search</label>
-          <input id="q" name="q" defaultValue={sp.q} placeholder="Project or receipt number" className={sel + " w-56"} /></div>
-        <div><label htmlFor="status" className="block text-sm font-semibold">Status</label>
-          <select id="status" name="status" defaultValue={sp.status ?? ""} className={sel}>
-            <option value="">All</option>{Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-        <div><label htmlFor="frequency" className="block text-sm font-semibold">Frequency</label>
-          <select id="frequency" name="frequency" defaultValue={sp.frequency ?? ""} className={sel}>
-            <option value="">All</option>{Object.entries(FREQUENCY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-        <div><label htmlFor="year" className="block text-sm font-semibold">Year</label>
-          <select id="year" name="year" defaultValue={sp.year ?? ""} className={sel}>
-            <option value="">All</option>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
-        <button className="min-h-11 rounded-md bg-teal-800 px-5 font-semibold text-white">Apply</button>
-        <Link href="/dashboard/contributions" className="min-h-11 py-2 underline">Clear</Link>
-      </form>
+      <Panel className="mt-6">
+        <form method="get" className="flex flex-wrap items-end gap-3" role="search" aria-label="Filter contributions">
+          <div><label htmlFor="q" className="block text-sm font-semibold">Search</label>
+            <input id="q" name="q" defaultValue={sp.q} placeholder="Project or receipt number" className={sel + " w-56"} /></div>
+          <div><label htmlFor="status" className="block text-sm font-semibold">Status</label>
+            <select id="status" name="status" defaultValue={sp.status ?? ""} className={sel}>
+              <option value="">All</option>{Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+          <div><label htmlFor="frequency" className="block text-sm font-semibold">Frequency</label>
+            <select id="frequency" name="frequency" defaultValue={sp.frequency ?? ""} className={sel}>
+              <option value="">All</option>{Object.entries(FREQUENCY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+          <div><label htmlFor="year" className="block text-sm font-semibold">Year</label>
+            <select id="year" name="year" defaultValue={sp.year ?? ""} className={sel}>
+              <option value="">All</option>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
+          <button className="min-h-11 rounded-md bg-teal-800 px-5 font-semibold text-white">Apply</button>
+          <Link href="/dashboard/contributions" className="min-h-11 py-2 text-teal-600 underline">Clear</Link>
+        </form>
+      </Panel>
 
       {result.total === 0 ? (
         <div className="mt-8"><Empty title={all.length ? "No contributions match your filters" : "No contributions yet"}>
-          {all.length === 0 && <Link className="underline" href="/donate">Make your first gift</Link>}</Empty></div>
+          {all.length === 0 && <Link className="text-teal-600 underline" href="/dashboard/give">Make your first gift</Link>}</Empty></div>
       ) : (
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[42rem] text-left">
-            <caption className="sr-only">Your contributions, {result.total} total</caption>
-            <thead><tr className="border-b-2 border-ink">
-              {["Date", "Amount", "Method", "Frequency", "Designation", "Status", "Receipt"].map((h) => <th key={h} scope="col" className="py-2 pr-4 font-semibold">{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {result.rows.map((r) => (
-                <tr key={r.id} className="border-b border-line align-top">
-                  <td className="py-3 pr-4">{new Date(r.donated_at).toLocaleDateString("en-US", { timeZone: settings.timezone })}</td>
-                  <td className="py-3 pr-4 font-semibold">{formatMoney(r.amount_cents, settings.currency)}</td>
-                  <td className="py-3 pr-4">{METHOD_LABEL[r.payment_method] ?? r.payment_method}</td>
-                  <td className="py-3 pr-4">{FREQUENCY_LABEL[r.frequency]}</td>
-                  <td className="py-3 pr-4">{r.designation}</td>
-                  <td className="py-3 pr-4"><StatusBadge status={r.status} /></td>
-                  <td className="py-3">
-                    {r.receipt_number ? (
-                      <a className="underline" href={`/receipts/${r.id}/pdf`}>
-                        {r.receipt_number}<span className="sr-only">, download {isReceiptFinal(r.status as DonationStatus) ? "receipt" : "pending acknowledgment"}</span>
-                      </a>
-                    ) : <span className="text-ink-soft">—</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <>
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full min-w-[42rem] text-left">
+              <caption className="sr-only">Your contributions, {result.total} total</caption>
+              <thead><tr className="bg-paper text-sm text-ink-soft">
+                {["Date", "Amount", "Method", "Frequency", "Designation", "Status", "Receipt"].map((h) => <th key={h} scope="col" className="py-2.5 pr-4 font-semibold">{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {result.rows.map((r) => (
+                  <tr key={r.id} className="border-b border-line align-top">
+                    <td className="py-3 pr-4">{new Date(r.donated_at).toLocaleDateString("en-US", { timeZone: settings.timezone })}</td>
+                    <td className="py-3 pr-4 font-semibold">{formatMoney(r.amount_cents, settings.currency)}</td>
+                    <td className="py-3 pr-4">{METHOD_LABEL[r.payment_method] ?? r.payment_method}</td>
+                    <td className="py-3 pr-4">{FREQUENCY_LABEL[r.frequency]}</td>
+                    <td className="py-3 pr-4">{r.designation}</td>
+                    <td className="py-3 pr-4"><StatusBadge status={r.status} /></td>
+                    <td className="py-3">
+                      {r.receipt_number ? (
+                        <a className="underline" href={`/receipts/${r.id}/pdf`}>
+                          {r.receipt_number}<span className="sr-only">, download {isReceiptFinal(r.status as DonationStatus) ? "receipt" : "pending acknowledgment"}</span>
+                        </a>
+                      ) : <span className="text-ink-soft">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {result.pages > 1 && (
             <nav aria-label="Pagination" className="mt-4 flex items-center gap-4">
               {result.page > 1 && <Link className="underline" href={qs(result.page - 1)}>Previous</Link>}
@@ -100,7 +104,7 @@ export default async function ContributionsPage({ searchParams }: { searchParams
               {result.page < result.pages && <Link className="underline" href={qs(result.page + 1)}>Next</Link>}
             </nav>
           )}
-        </div>
+        </>
       )}
     </>
   );

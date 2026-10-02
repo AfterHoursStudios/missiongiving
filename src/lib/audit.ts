@@ -2,10 +2,10 @@ import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export type AuditAction =
-  | "staff.login" | "permissions.change" | "donor.update" | "donor.merge" | "refund.issue"
+  | "staff.login" | "permissions.change" | "donor.create" | "donor.update" | "donor.merge" | "donor.delete" | "refund.issue"
   | "expense.create" | "expense.update" | "project.publish" | "campaign.send"
   | "report.export" | "settings.change" | "financial.adjustment" | "donor.export"
-  | "tier.change" | "receipt.resend" | "webhook.retry" | "sponsorship.change";
+  | "tier.change" | "receipt.resend" | "webhook.retry" | "sponsorship.change" | "form_template.change" | "message.send";
 
 /** Append-only. Never pass secrets or payment details in `details`. */
 export async function audit(

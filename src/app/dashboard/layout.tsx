@@ -1,38 +1,51 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
+import { Heart, LayoutDashboard, LogOut } from "lucide-react";
 import { getStaffPermissions, requireUser } from "@/lib/auth/session";
 import { signOutAction } from "@/lib/auth/actions";
-import { Logo } from "@/components/site/logo";
-import { SideNav } from "@/components/site/side-nav";
+import { AdminTopNav, type TopNavItem } from "@/components/admin/top-nav";
 
 export const metadata: Metadata = { title: { default: "Your account", template: "%s | Your account" }, robots: { index: false, follow: false } };
 
-const items = [
-  { href: "/dashboard", label: "Overview" }, { href: "/dashboard/sponsored", label: "Sponsored worker" },
-  { href: "/dashboard/contributions", label: "Contributions" },
-  { href: "/dashboard/recurring", label: "Recurring gifts" }, { href: "/dashboard/statements", label: "Statements" },
-  { href: "/dashboard/profile", label: "Profile" },
+const items: TopNavItem[] = [
+  { key: "overview", label: "Overview", icon: "home", href: "/dashboard" },
+  { key: "sponsored", label: "Sponsored worker", icon: "heart", href: "/dashboard/sponsored" },
+  { key: "contributions", label: "Contributions", icon: "gift", href: "/dashboard/contributions" },
+  { key: "recurring", label: "Recurring gifts", icon: "recurring", href: "/dashboard/recurring" },
+  { key: "payment", label: "Payment methods", icon: "card", href: "/dashboard/payment-methods" },
+  { key: "statements", label: "Statements", icon: "statements", href: "/dashboard/statements" },
+  { key: "profile", label: "Profile", icon: "profile", href: "/dashboard/profile" },
 ];
 
+/* Same shell as the admin (teal bar, icon menu, gray workspace with white panels), with only the donor's own pages. */
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const isStaff = (await getStaffPermissions(user.id)).size > 0;
+  const topLink = "inline-flex min-h-11 items-center gap-1.5 px-2 hover:underline";
   return (
-    <>
-      <header className="border-b border-line no-print">
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
-          <Logo />
-          <div className="flex items-center gap-3">
-            {isStaff && <Link href="/admin" className="min-h-11 px-3 py-2 font-semibold underline">Admin</Link>}
-            <Link href="/donate" className="min-h-11 rounded-md bg-brand-700 px-4 py-2 font-semibold text-white hover:bg-brand-800">Give</Link>
-            <form action={signOutAction}><button className="min-h-11 px-3 font-semibold underline">Sign out</button></form>
+    <div className="app-shell flex flex-1 flex-col">
+      <header className="no-print bg-teal-800 text-sm text-white">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 px-4 md:px-6">
+          {/* Shown in solid white because the logo's navy lettering would vanish on the dark bar. */}
+          <Link href="/dashboard" aria-label="Your Mission Giving account" className="my-1.5 inline-flex min-h-11 items-center py-1">
+            <Image src="/images/mg-logo.png" alt="Mission Giving" width={760} height={199} priority className="h-8 w-auto brightness-0 invert" />
+          </Link>
+          <div className="flex flex-wrap items-center gap-x-3">
+            {isStaff && <Link href="/admin" className={topLink}><LayoutDashboard aria-hidden="true" size={16} />Admin</Link>}
+            <Link href="/dashboard/give" className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-gold px-4 font-semibold text-ink hover:bg-gold/90">
+              <Heart aria-hidden="true" size={15} />Give
+            </Link>
+            <form action={signOutAction}>
+              <button className={topLink}><LogOut aria-hidden="true" size={16} />Log out</button>
+            </form>
           </div>
         </div>
       </header>
-      <div className="w-full flex-1 px-4 py-6 md:grid md:grid-cols-[12rem_minmax(0,1fr)] md:gap-8 md:px-6">
-        <SideNav items={items} label="Account" rootHref="/dashboard" />
-        <main id="main" className="min-w-0 max-w-5xl md:col-start-2">{children}</main>
-      </div>
-    </>
+      <AdminTopNav items={items} canSearch={false} rootHref="/dashboard" label="Account" />
+      <main id="main" className="w-full min-w-0 flex-1 bg-canvas px-4 py-5 md:px-6">
+        {children}
+      </main>
+    </div>
   );
 }

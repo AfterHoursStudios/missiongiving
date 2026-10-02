@@ -10,7 +10,7 @@ const sel = "mt-1.5 min-h-12 w-full rounded-md border border-ink-soft bg-white p
 
 export default async function OfflineGiftPage() {
   const { perms } = await requirePermission("finance.view");
-  const { data: projects } = await createSupabaseAdminClient().from("projects").select("id, title").neq("status", "archived").order("title");
+  const { data: projects } = await createSupabaseAdminClient().from("projects").select("id, title").neq("status", "archived").neq("kind", "sponsorship").order("title");
   return (
     <>
       <h1 className="text-3xl font-semibold">Record offline gift</h1>

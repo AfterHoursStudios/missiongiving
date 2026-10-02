@@ -44,12 +44,13 @@ export async function registerAction(_: FormState, form: FormData): Promise<Form
   const rl = rateLimit(await clientKey("register"), 5, 60 * 60_000);
   if (!rl.ok) return { error: "Too many attempts. Please try again later." };
 
+  const next = safeNext(form.get("next"));
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
-      emailRedirectTo: `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/callback?next=/dashboard`,
+      emailRedirectTo: `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/callback?next=${encodeURIComponent(next)}`,
       data: { first_name: parsed.data.first_name, last_name: parsed.data.last_name },
     },
   });

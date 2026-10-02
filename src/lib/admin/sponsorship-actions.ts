@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { publicEnv } from "@/lib/env";
+import { getStripe } from "@/lib/stripe/client";
 import { storagePathFromPublicUrl } from "./image-upload";
 import { IMAGE_BUCKET, removeImages, uploadImageFile } from "./project-images";
 import { sponsorshipSchema, sponsorshipSlug, sponsorshipToRow } from "./sponsorship-schema";
@@ -68,6 +69,58 @@ export async function saveSponsorship(_: AdminState, form: FormData): Promise<Ad
     return { error: "Could not create the sponsorship." };
   }
   await audit(user.id, "sponsorship.change", "sponsorship", created.id, { op: "create", amount_cents: row.monthly_amount_cents });
+  revalidatePath("/admin/sponsorships"); revalidatePath("/sponsor");
+  redirect("/admin/sponsorships");
+}
+
+async function loadSponsorship(form: FormData) {
+  const id = form.get("id");
+  if (typeof id !== "string" || !z.string().uuid().safeParse(id).success) return null;
+  return (await createSupabaseAdminClient().from("sponsorships").select("id, name, project_id").eq("id", id).maybeSingle()).data;
+}
+
+/** Ends the monthly gift(s) held on her (Stripe first, then our record) so she returns to the public list. Past gifts and receipts stay. */
+async function cancelHeldGifts(projectId: string, reason: string, onlyId?: string): Promise<{ count: number; failed: boolean }> {
+  const db = createSupabaseAdminClient();
+  let q = db.from("recurring_donations").select("id, stripe_subscription_id").eq("project_id", projectId).in("status", ["active", "past_due", "incomplete"]);
+  if (onlyId) q = q.eq("id", onlyId);
+  const { data } = await q;
+  let failed = false;
+  for (const r of data ?? []) {
+    if (r.stripe_subscription_id) {
+      try { await getStripe().subscriptions.cancel(r.stripe_subscription_id, undefined, { idempotencyKey: `cancel-${r.id}` }); }
+      catch (e) { if (!(e instanceof Error && /No such subscription|canceled/i.test(e.message))) { failed = true; continue; } }
+    }
+    await db.from("recurring_donations").update({ status: "canceled", canceled_at: new Date().toISOString(), next_charge_at: null, cancel_reason: reason }).eq("id", r.id);
+  }
+  return { count: (data ?? []).length, failed };
+}
+
+export async function cancelSponsorship(_: AdminState, form: FormData): Promise<AdminState> {
+  const { user } = await requirePermission("projects.manage");
+  const s = await loadSponsorship(form);
+  if (!s) return { error: "Sponsorship not found." };
+  if (form.get("confirm") !== "on") return { error: "Tick the box to confirm." };
+  const rid = form.get("recurringId");
+  const onlyId = typeof rid === "string" && z.string().uuid().safeParse(rid).success ? rid : undefined;
+  const { count, failed } = await cancelHeldGifts(s.project_id, "admin_canceled", onlyId);
+  await audit(user.id, "sponsorship.change", "sponsorship", s.id, { op: "cancel_sponsor", canceled: count, failed });
+  revalidatePath("/admin/sponsorships"); revalidatePath(`/admin/sponsorships/${s.id}`); revalidatePath("/sponsor");
+  if (failed) return { error: "Stripe could not cancel every monthly gift. Try again." };
+  return { ok: true, message: count ? "Sponsorship canceled. Their share is open again on the public list." : "That sponsorship is already ended." };
+}
+
+/** Removes her from the site and admin list by archiving (history, receipts and reports keep her name); any monthly sponsor is canceled first. */
+export async function removeWorker(_: AdminState, form: FormData): Promise<AdminState> {
+  const { user } = await requirePermission("projects.manage");
+  const s = await loadSponsorship(form);
+  if (!s) return { error: "Sponsorship not found." };
+  if (form.get("confirm") !== "on") return { error: "Tick the box to confirm." };
+  const { count, failed } = await cancelHeldGifts(s.project_id, "worker_removed");
+  if (failed) return { error: "Stripe could not cancel her monthly sponsor, so she was not removed. Try again." };
+  const { error } = await createSupabaseAdminClient().from("sponsorships").update({ status: "archived" }).eq("id", s.id);
+  if (error) return { error: "Could not remove her." };
+  await audit(user.id, "sponsorship.change", "sponsorship", s.id, { op: "remove", canceled: count });
   revalidatePath("/admin/sponsorships"); revalidatePath("/sponsor");
   redirect("/admin/sponsorships");
 }

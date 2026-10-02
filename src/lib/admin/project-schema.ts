@@ -24,6 +24,20 @@ export function formatRichText(input: string): string {
   }).join("");
 }
 
+/**
+ * The inverse of formatRichText: turns stored HTML back into the plain text an editor would show, so a template
+ * saved with real markup (an older edit, or a seeded default) can still be edited as plain text afterward.
+ * Round-trips formatRichText's own output exactly; other HTML collapses to reasonably readable text.
+ */
+export function htmlToEditableText(html: string): string {
+  const withBreaks = html
+    .replace(/<li[^>]*>/gi, "- ").replace(/<\/li>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|h2|h3|blockquote)>/gi, "\n\n")
+    .replace(/<\/(ul|ol)>/gi, "\n");
+  return sanitizeHtml(withBreaks, { allowedTags: [], allowedAttributes: {} }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function slugify(input: string): string {
   return input.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 }
@@ -68,6 +82,7 @@ export const projectSchema = z.object({
   status: z.enum(PROJECT_STATUSES),
   featured: checkbox, is_public: checkbox, allow_custom_amount: checkbox,
   seo_title: text(70), seo_description: text(160), share_image_url: httpsUrl,
+  donation_form_template_id: z.union([z.string().uuid(), z.literal("")]).optional().transform((v) => v || null),
 }).transform((v) => ({ ...v, slug: v.slug ? v.slug : slugify(v.title) }))
   .superRefine((v, ctx) => {
     if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(v.slug)) ctx.addIssue({ code: "custom", path: ["slug"], message: "Slug may only contain lowercase letters, numbers and hyphens" });
@@ -86,6 +101,7 @@ export function projectToRow(p: ProjectInput) {
     gallery: p.gallery, location: p.location, goal_cents: p.goal, start_date: p.start_date, end_date: p.end_date,
     status: p.status, featured: p.featured, is_public: p.is_public, allow_custom_amount: p.allow_custom_amount,
     seo_title: p.seo_title, seo_description: p.seo_description, share_image_url: p.share_image_url,
+    donation_form_template_id: p.donation_form_template_id,
   };
 }
 
@@ -106,3 +122,12 @@ export const offlineAdjustmentSchema = z.object({
   }),
   note: z.string().trim().min(5, "Explain the adjustment (at least a few words)").max(500),
 });
+
+export const PROJECT_STATUS_HELP: Record<(typeof PROJECT_STATUSES)[number], string> = {
+  draft: "Being prepared; not shown to the public.",
+  scheduled: "Ready, waiting for its start date; not shown yet.",
+  active: "Live and accepting gifts (if Public).",
+  goal_reached: "Live; shown as having reached its goal.",
+  completed: "Finished; still shown, no longer the focus.",
+  archived: "Hidden everywhere and no longer offered as a designation.",
+};

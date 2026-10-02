@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAmount, type Limits, type TierRow } from "@/lib/donations/checkout";
+import { checkoutSchema, resolveAmount, type Limits, type TierRow } from "@/lib/donations/checkout";
 import { fillTemplate, pickConfirmationMessage, renderDonationMessage } from "@/lib/messages";
 import { advanceStatus, isReceiptFinal } from "@/lib/donations/status";
 
@@ -40,6 +40,26 @@ describe("resolveAmount", () => {
     expect(c(null).ok).toBe(false);
     expect(c(1234, { ...limits, customEnabled: false }).ok).toBe(false);
     expect(c(1234, { ...limits, projectAllowsCustom: false }).ok).toBe(false);
+  });
+});
+
+describe("checkoutSchema (guest checkout)", () => {
+  const payload = (email: unknown) => ({
+    idempotencyKey: "5f0b1a4e-1c1e-4b7e-9a51-1f2f3a4b5c6d", destination: { kind: "general" as const },
+    frequency: "one_time" as const, tierId: null, customAmountCents: 2500,
+    donor: { firstName: "Jamie", lastName: "Donor", email }, anonymous: false, marketingOptIn: false, projectUpdatesOptIn: false, dedication: null,
+  });
+  it("requires a valid email from every donor, signed in or not", () => {
+    expect(checkoutSchema.safeParse(payload("jamie@example.com")).success).toBe(true);
+    expect(checkoutSchema.safeParse(payload("")).success).toBe(false);
+    expect(checkoutSchema.safeParse(payload("not-an-email")).success).toBe(false);
+    expect(checkoutSchema.safeParse(payload(undefined)).success).toBe(false);
+  });
+  it("accepts only a Stripe payment method id for a saved card or bank account", () => {
+    const withPm = (paymentMethodId: string) => ({ ...payload("jamie@example.com"), paymentMethodId, fromAccount: true });
+    expect(checkoutSchema.safeParse(withPm("pm_1AbC23")).success).toBe(true);
+    expect(checkoutSchema.safeParse(withPm("seti_1AbC23")).success).toBe(false);
+    expect(checkoutSchema.safeParse(withPm("pm_1; drop")).success).toBe(false);
   });
 });
 

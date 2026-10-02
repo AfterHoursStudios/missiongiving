@@ -32,8 +32,26 @@ describe("resolveSponsorship", () => {
   });
   it("the checkout schema accepts a sponsorship destination", () => {
     const base = { idempotencyKey: "5f0b1a4e-1c1e-4b7e-9a51-1f2f3a4b5c6d", frequency: "monthly", tierId: null, customAmountCents: null,
-      donor: { firstName: "A", lastName: "B" }, anonymous: false, marketingOptIn: false, projectUpdatesOptIn: false, dedication: null };
+      donor: { firstName: "A", lastName: "B", email: "a@example.com" }, anonymous: false, marketingOptIn: false, projectUpdatesOptIn: false, dedication: null };
     expect(checkoutSchema.safeParse({ ...base, destination: { kind: "sponsorship", sponsorshipId: "6a1c2b5f-2d2f-4c8f-8b62-2a3a4b5c6d7e" } }).success).toBe(true);
     expect(checkoutSchema.safeParse({ ...base, destination: { kind: "sponsorship", sponsorshipId: "nope" } }).success).toBe(false);
+  });
+});
+
+describe("partial monthly sponsorship", () => {
+  const sp = { status: "active", monthly_amount_cents: 8000 };
+  const o = (remainingCents: number, requestedCents: number | null) => ({ remainingCents, requestedCents, minCents: 500 });
+  it("defaults to what she still needs and accepts a smaller share", () => {
+    expect(resolveSponsorship("monthly", sp, o(5000, null))).toMatchObject({ ok: true, amountCents: 5000 });
+    expect(resolveSponsorship("monthly", sp, o(5000, 2000))).toMatchObject({ ok: true, amountCents: 2000 });
+  });
+  it("rejects more than remains, below the minimum, or when fully sponsored", () => {
+    expect(resolveSponsorship("monthly", sp, o(5000, 6000)).ok).toBe(false);
+    expect(resolveSponsorship("monthly", sp, o(5000, 100)).ok).toBe(false);
+    expect(resolveSponsorship("monthly", sp, o(0, null)).ok).toBe(false);
+  });
+  it("lets the last small remainder be filled, and one-time stays the full amount", () => {
+    expect(resolveSponsorship("monthly", sp, o(300, null))).toMatchObject({ ok: true, amountCents: 300 });
+    expect(resolveSponsorship("one_time", sp, o(5000, 2000))).toMatchObject({ amountCents: 8000 });
   });
 });

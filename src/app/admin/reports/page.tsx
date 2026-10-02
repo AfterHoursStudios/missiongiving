@@ -3,6 +3,8 @@ import { requirePermission } from "@/lib/auth/session";
 import { runReport } from "@/lib/reports/request";
 import { DISCLAIMER, cell } from "@/lib/reports/sections";
 import { PrintButton } from "@/components/admin/print-button";
+import { getOrgSettings } from "@/lib/settings";
+import { currentMonthKey } from "@/lib/reports/pnl";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Financial reports" };
@@ -11,6 +13,7 @@ const sel = "min-h-11 rounded-md border border-ink-soft bg-white px-2";
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const { perms } = await requirePermission("reports.view");
+  const pnlMonth = currentMonthKey((await getOrgSettings()).timezone); // default month for the Excel P&L download
   const sp = await searchParams;
   const r = await runReport(sp, perms);
   const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v) as [string, string][]);
@@ -28,6 +31,18 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       </div>
 
       <p role="note" className="mt-4 rounded-md bg-warning-bg p-3 text-warning">{DISCLAIMER}</p>
+      <section aria-labelledby="pnl-xlsx" className="mt-6 max-w-3xl rounded-lg border border-line bg-white p-4 shadow-sm no-print">
+        <h2 id="pnl-xlsx" className="text-xl font-semibold">Monthly P&amp;L (Excel)</h2>
+        <p className="mt-1 text-sm text-ink-soft">Revenue, expenses and net for the month, compared with the prior month (gain or loss in $ and %), with year-to-date totals and a second sheet showing every month of the year.</p>
+        <form method="get" action="/admin/reports/pnl" className="mt-3 flex flex-wrap items-end gap-3">
+          <div>
+            <label htmlFor="pnl-month" className="block text-sm font-semibold">Month</label>
+            <input id="pnl-month" name="month" type="month" required defaultValue={pnlMonth}
+              className="min-h-11 rounded-md border border-ink-soft bg-white px-2" />
+          </div>
+          <button className="min-h-11 rounded-md bg-teal-800 px-5 font-semibold text-white">Download P&amp;L (.xlsx)</button>
+        </form>
+      </section>
       <nav aria-label="Report type" className="mt-6 flex gap-6 no-print">
         <Link href={typeHref("pl")} aria-current={r.type === "pl" ? "page" : undefined} className={`min-h-11 py-2 font-semibold ${r.type === "pl" ? "border-b-4 border-brand-700" : "underline"}`}>Management P&amp;L</Link>
         <Link href={typeHref("soa")} aria-current={r.type === "soa" ? "page" : undefined} className={`min-h-11 py-2 font-semibold ${r.type === "soa" ? "border-b-4 border-brand-700" : "underline"}`}>Statement of Activities</Link>

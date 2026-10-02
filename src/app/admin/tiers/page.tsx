@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { moveTier, setAllTierFrequencies, setTierStatus } from "@/lib/admin/tier-actions";
 import { CheckInput, SimpleForm } from "@/components/donor/forms";
 import { formatMoney } from "@/lib/money";
+import { StatusDot } from "@/components/donor/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Donation tiers" };
@@ -51,7 +52,7 @@ export default async function TiersPage({ searchParams }: { searchParams: Promis
                 <td className="py-3 pr-4 font-semibold">{formatMoney(t.amount_cents)}</td>
                 <td className="py-3 pr-4">{[t.allow_one_time && "One time", t.allow_monthly && "Monthly", t.allow_yearly && "Yearly"].filter(Boolean).join(", ")}</td>
                 <td className="py-3 pr-4">{[t.general_fund && "General Fund", project && (project as { title: string }).title].filter(Boolean).join(", ")}</td>
-                <td className="py-3 pr-4">{t.status}</td>
+                <td className="py-3 pr-4"><StatusDot status={t.status} /></td>
                 <td className="py-3">
                   <div className="flex flex-wrap">
                     <form action={moveTier}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="dir" value="up" /><button className={btn} disabled={i === 0}>Move up<span className="sr-only"> {t.public_title}</span></button></form>

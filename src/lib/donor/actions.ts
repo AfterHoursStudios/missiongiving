@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDonorContext } from "./context";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -10,7 +9,6 @@ import { getStripe } from "@/lib/stripe/client";
 import { notifyDonor } from "@/lib/donations/notify";
 import { dollarsToCents, validateDonationAmount } from "@/lib/money";
 import { rateLimit } from "@/lib/rate-limit";
-import { publicEnv } from "@/lib/env";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string } | undefined;
 
@@ -74,22 +72,6 @@ export async function updateRecurringAmount(_: ActionState, form: FormData): Pro
   await createSupabaseAdminClient().from("recurring_donations").update({ amount_cents: cents, tier_id: null }).eq("id", rec.id);
   revalidatePath("/dashboard/recurring");
   return { ok: true, message: "Your new amount will apply from your next scheduled gift." };
-}
-
-/** Sends the donor to Stripe's hosted portal to update their card or bank account. Requires the portal to be enabled in Stripe. */
-export async function openPaymentMethodPortal() {
-  const { donor } = await getDonorContext();
-  if (!donor?.stripe_customer_id) redirect("/dashboard/recurring?portal=missing");
-  let url: string;
-  try {
-    const session = await getStripe().billingPortal.sessions.create({
-      customer: donor.stripe_customer_id, return_url: `${publicEnv.NEXT_PUBLIC_APP_URL}/dashboard/recurring`,
-    });
-    url = session.url;
-  } catch {
-    redirect("/dashboard/recurring?portal=unavailable");
-  }
-  redirect(url);
 }
 
 const profileSchema = z.object({

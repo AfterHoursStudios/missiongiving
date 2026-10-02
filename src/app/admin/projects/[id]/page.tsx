@@ -7,6 +7,8 @@ import { addProjectUpdate, adjustOffline } from "@/lib/admin/project-actions";
 import { ProjectForm } from "@/components/admin/project-form";
 import { CheckInput, SimpleForm, TextInput } from "@/components/donor/forms";
 import { formatMoney, projectProgress } from "@/lib/money";
+import { StatCard, StatusDot } from "@/components/donor/ui";
+import { DollarSign, Target, Users } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Edit project" };
@@ -18,9 +20,10 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
   const db = createSupabaseAdminClient();
   const { data: project } = await db.from("projects").select("*").eq("id", id).maybeSingle();
   if (!project) notFound();
-  const [{ data: totals }, { data: updates }] = await Promise.all([
+  const [{ data: totals }, { data: updates }, { data: forms }] = await Promise.all([
     db.rpc("project_totals", { p_project_id: id }),
     db.from("project_updates").select("id, title, published_at, created_at").eq("project_id", id).order("created_at", { ascending: false }),
+    db.from("donation_form_templates").select("id, name").eq("status", "active").order("name"),
   ]);
   const raised = Number(totals?.[0]?.raised_cents ?? 0);
   const pr = projectProgress(raised, project.offline_adjustment_cents, project.goal_cents);
@@ -28,11 +31,23 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
   return (
     <>
       <p><Link className="underline" href="/admin/projects">← All projects</Link></p>
-      <h1 className="mt-2 text-3xl font-semibold">{project.title}</h1>
-      <p className="text-ink-soft">
-        {formatMoney(pr.raised)} raised{project.goal_cents ? ` of ${formatMoney(project.goal_cents)} (${pr.pct}%)` : ""} · {Number(totals?.[0]?.donor_count ?? 0)} donors
-        {project.is_public && ["active", "goal_reached", "completed"].includes(project.status) && <> · <Link className="underline" href={`/projects/${project.slug}`}>View public page</Link></>}
-      </p>
+
+      <div className="mt-3 rounded-lg border border-line border-l-4 border-l-brand-700 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start gap-6">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-semibold">{project.title}</h1>
+            <div className="mt-1"><StatusDot status={project.status} /></div>
+            {project.is_public && ["active", "goal_reached", "completed"].includes(project.status) && (
+              <p className="mt-2"><Link className="underline" href={`/projects/${project.slug}`}>View public page</Link></p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <StatCard icon={DollarSign} tone="success" label="Raised" value={formatMoney(pr.raised)} hint={project.goal_cents ? `${pr.pct}% of goal` : undefined} />
+            <StatCard icon={Target} tone="gold" label="Goal" value={project.goal_cents ? formatMoney(project.goal_cents) : "No goal set"} />
+            <StatCard icon={Users} tone="brand" label="Donors" value={String(Number(totals?.[0]?.donor_count ?? 0))} />
+          </div>
+        </div>
+      </div>
 
       {["active", "goal_reached", "completed"].includes(project.status) && !project.is_public && (
         <p role="alert" className="mt-4 rounded-md bg-warning-bg p-3 text-warning"><strong>Not visible to the public.</strong> This project is {project.status.replace("_", " ")} but the Public box is unchecked, so it does not appear on the website or in the donate flow. Tick <em>Public</em> below and save.</p>
@@ -40,7 +55,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
 
       {perms.has("comms.send") && <p className="mt-3"><Link className="font-semibold underline" href={`/admin/campaigns/new?project=${id}`}>Create an announcement for donors</Link> <span className="text-sm text-ink-soft">(starts a draft; you preview and confirm before anything is sent)</span></p>}
 
-      <div className="mt-8 max-w-2xl"><ProjectForm project={project} /></div>
+      <div className="mt-8 max-w-2xl"><ProjectForm project={project} formTemplates={forms ?? []} /></div>
 
       <section className="mt-14 max-w-2xl" aria-labelledby="upd">
         <h2 id="upd" className="text-2xl font-semibold">Project updates</h2>

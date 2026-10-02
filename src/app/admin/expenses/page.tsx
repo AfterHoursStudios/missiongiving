@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { decideExpense } from "@/lib/admin/expense-actions";
 import { SimpleForm } from "@/components/donor/forms";
 import { formatMoney } from "@/lib/money";
+import { StatusDot } from "@/components/donor/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Expenses" };
@@ -55,7 +56,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
               <td className="py-2 pr-4">{rel<{ name: string }>(e.expense_categories)?.name}{rel<{ title: string }>(e.projects) && <span className="block text-sm text-ink-soft">{rel<{ title: string }>(e.projects)!.title}</span>}</td>
               <td className="py-2 pr-4 font-semibold">{formatMoney(e.amount_cents)}</td>
               <td className="py-2 pr-4">{e.restriction}</td>
-              <td className="py-2 pr-4">{e.approval}</td>
+              <td className="py-2 pr-4"><StatusDot status={e.approval} /></td>
               <td className="py-2 pr-4">{e.receipt_path ? <a className="underline" href={`/admin/expenses/${e.id}/receipt`} target="_blank" rel="noopener">View</a> : "—"}</td>
               <td className="py-2">{canApprove && e.approval === "pending" && (
                 <div className="flex gap-2">

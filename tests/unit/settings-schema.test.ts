@@ -27,9 +27,9 @@ describe("settingsSchema", () => {
     expect(settingsSchema.safeParse({ ...valid, min_donation: "0.50" }).success).toBe(false);
     expect(settingsSchema.safeParse({ ...valid, min_donation: "100", max_donation: "50" }).success).toBe(false);
   });
-  it("cannot switch on guest donations or another currency", () => {
+  it("can switch on guest donations, but never another currency", () => {
     const e = settingsToEntries(settingsSchema.parse({ ...valid, guest_donations_enabled: "on", currency: "EUR" }));
-    expect(e).not.toHaveProperty("guest_donations_enabled");
+    expect(e.guest_donations_enabled).toBe(true);
     expect(e.currency).toBe("USD");
   });
 });

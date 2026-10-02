@@ -10,9 +10,8 @@ const dollars = (label: string) => z.string().trim().transform((v, ctx) => {
 const validZone = (tz: string) => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; } };
 
 /**
- * Only these keys are editable through the settings form (explicit allow-list). Guest donations are deliberately
- * absent: the option exists in the database but guest checkout is not implemented, so it must not be switchable.
- * Multi-currency is likewise fixed to USD until payments, receipts and reporting all support it.
+ * Only these keys are editable through the settings form (explicit allow-list). Multi-currency is fixed to USD
+ * until payments, receipts and reporting all support it.
  */
 export const settingsSchema = z.object({
   legal_name: text(150).min(1, "Enter the legal organization name"),
@@ -27,6 +26,7 @@ export const settingsSchema = z.object({
   default_thank_you: text(1000).min(1, "Enter a default thank-you message"),
   social_facebook: optionalUrl, social_youtube: optionalUrl, social_twitter: optionalUrl,
   custom_amount_enabled: checkbox, public_recognition_enabled: checkbox, recurring_amount_change_enabled: checkbox,
+  guest_donations_enabled: checkbox,
   min_donation: dollars("Minimum donation"), max_donation: dollars("Maximum donation"),
   email_sender_name: text(80).min(1, "Enter a sender name"),
   email_reply_to: z.string().trim().max(200).refine((v) => v === "" || z.string().email().safeParse(v).success, "Enter a valid reply-to email"),

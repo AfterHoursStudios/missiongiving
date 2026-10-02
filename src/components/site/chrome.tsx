@@ -5,22 +5,43 @@ const nav = [
   { href: "/projects", label: "Projects" },
   { href: "/sponsor", label: "Sponsor a woman" },
   { href: "/about", label: "About" },
+];
+const utility = [
+  { href: "/legal/privacy", label: "Privacy" },
+  { href: "/dashboard", label: "My giving" },
   { href: "/sign-in", label: "Sign in" },
 ];
 
+/** Public site header, Nike-style: a thin utility bar, then logo left, main links centred, Donate pill on the right. */
 export function SiteHeader() {
   return (
-    <header className="border-b border-line bg-paper no-print">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
-        <Logo priority />
-        <nav aria-label="Main" className="flex items-center gap-5">
-          {nav.map((n) => (
-            <Link key={n.href} href={n.href} className="hidden font-medium hover:underline sm:inline">{n.label}</Link>
+    // Sticky: stays pinned to the top of the window while the page scrolls.
+    <header className="no-print sticky top-0 z-40 shadow-sm">
+      <div className="bg-paper-2 text-xs">
+        <nav aria-label="Account and help" className="mx-auto flex max-w-[90rem] justify-end gap-x-1 px-4 sm:px-8">
+          {utility.map((u, i) => (
+            <span key={u.href + u.label} className="flex items-center">
+              {i > 0 && <span aria-hidden="true" className="px-1 text-ink-soft">|</span>}
+              <Link href={u.href} className="inline-flex min-h-9 items-center px-1 font-medium hover:text-ink-soft">{u.label}</Link>
+            </span>
           ))}
-          <Link href="/donate" className="min-h-11 rounded-md bg-brand-700 px-5 py-2.5 font-semibold text-white hover:bg-brand-800">
-            Donate now
-          </Link>
         </nav>
+      </div>
+      <div className="border-b border-line bg-white">
+        <div className="mx-auto grid max-w-[90rem] grid-cols-[1fr_auto] items-center gap-4 px-4 py-2 sm:px-8 md:grid-cols-[1fr_auto_1fr]">
+          <Logo priority className="h-10 sm:h-12" />
+          <nav aria-label="Main" className="hidden md:block">
+            <ul className="flex items-center gap-1">
+              {nav.map((n) => (
+                <li key={n.href}><Link href={n.href} className="inline-flex min-h-11 items-center px-3 font-semibold hover:underline hover:underline-offset-8">{n.label}</Link></li>
+              ))}
+            </ul>
+          </nav>
+          <div className="flex items-center justify-end gap-2">
+            <Link href="/projects" className="inline-flex min-h-11 items-center px-2 font-semibold md:hidden">Projects</Link>
+            <Link href="/donate" className="inline-flex min-h-11 items-center rounded-full bg-ink px-6 font-semibold text-white hover:bg-ink/85">Donate now</Link>
+          </div>
+        </div>
       </div>
     </header>
   );

@@ -22,3 +22,12 @@ export function findUnknownVariables(...texts: string[]): string[] {
 export function planVersions(existingMax: number): { snapshotOriginal: boolean; newVersion: number } {
   return existingMax === 0 ? { snapshotOriginal: true, newVersion: 2 } : { snapshotOriginal: false, newVersion: existingMax + 1 };
 }
+
+/**
+ * A new custom template's key, derived from its name. Every template key routes as `/admin/messages/[key]`, which
+ * only matches lowercase letters and underscores (existing keys like `donation_success_one_time` are wired to
+ * specific send events by that exact string) — so, unlike a URL slug, digits and hyphens are stripped, not kept.
+ */
+export function templateKeySlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "template";
+}

@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { ProjectStatusButton } from "@/components/admin/project-status-dialog";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { syncGoalStatuses } from "@/lib/admin/project-sync";
 import { formatMoney, projectProgress } from "@/lib/money";
+import { StatusDot } from "@/components/donor/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Projects" };
@@ -28,17 +30,18 @@ export default async function ProjectsAdminPage() {
       {rows.length === 0 ? <p className="mt-8 border-y border-line py-10 text-center text-ink-soft">No projects yet.</p> : (
         <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[42rem] text-left">
           <caption className="sr-only">Projects</caption>
-          <thead><tr className="border-b-2 border-ink">{["Project", "Status", "Raised", "Goal", "Donors", "Ends"].map((h) => <th key={h} scope="col" className="py-2 pr-4">{h}</th>)}</tr></thead>
+          <thead><tr className="border-b-2 border-ink">{["Project", "Status", "Raised", "Goal", "Donors", "Ends"].map((h) => <th key={h} scope="col" className="py-2 pr-4">{h}</th>)}<th scope="col" className="py-2"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>{rows.map((p) => {
             const pr = projectProgress(p.raised, p.offline_adjustment_cents, p.goal_cents);
             return (
               <tr key={p.id} className="border-b border-line">
                 <td className="py-3 pr-4"><Link className="font-semibold underline" href={`/admin/projects/${p.id}`}>{p.title}</Link>{p.is_public ? "" : <span className="ml-2 text-sm text-ink-soft">(not public)</span>}</td>
-                <td className="py-3 pr-4">{p.status.replace("_", " ")}</td>
+                <td className="py-3 pr-4"><StatusDot status={p.status} /></td>
                 <td className="py-3 pr-4 font-semibold">{formatMoney(pr.raised)}{pr.pct !== null && <span className="ml-1 text-sm font-normal text-ink-soft">({pr.pct}%)</span>}</td>
                 <td className="py-3 pr-4">{p.goal_cents ? formatMoney(p.goal_cents) : "—"}</td>
                 <td className="py-3 pr-4">{p.donors}</td>
-                <td className="py-3">{p.end_date ?? "—"}</td>
+                <td className="py-3 pr-4">{p.end_date ?? "—"}</td>
+                <td className="py-3 text-right"><ProjectStatusButton projectId={p.id} title={p.title} status={p.status} /></td>
               </tr>);
           })}</tbody></table></div>
       )}

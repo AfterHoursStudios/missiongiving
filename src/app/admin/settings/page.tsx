@@ -72,6 +72,7 @@ export default async function SettingsPage() {
           <CheckInput label="Allow custom donation amounts" name="custom_amount_enabled" defaultChecked={bool("custom_amount_enabled", true)} />
           <CheckInput label="Show public donor recognition (only donors who opt in)" name="public_recognition_enabled" defaultChecked={bool("public_recognition_enabled")} />
           <CheckInput label="Let donors change their recurring amount online" name="recurring_amount_change_enabled" defaultChecked={bool("recurring_amount_change_enabled", true)} />
+          <CheckInput label="Allow one-time gifts with no account (guest checkout)" name="guest_donations_enabled" defaultChecked={bool("guest_donations_enabled")} />
           <div className="grid gap-4 sm:grid-cols-2">
             <TextInput label="Minimum donation (USD)" name="min_donation" defaultValue={cents("min_donation_cents", 500)} required />
             <TextInput label="Maximum online donation (USD)" name="max_donation" defaultValue={cents("max_donation_cents", 5_000_000)} required />

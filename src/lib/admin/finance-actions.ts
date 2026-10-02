@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
+import { syncRecentStripeEvents } from "@/lib/stripe/sync";
 import { getOrgSettings } from "@/lib/settings";
 import { getStripe, isStripeConfigured, stripeLookups } from "@/lib/stripe/client";
 import { processWebhook } from "@/lib/stripe/handlers";
@@ -105,4 +106,19 @@ export async function retryWebhook(_: AdminState, form: FormData): Promise<Admin
   await audit(user.id, "webhook.retry", "webhook_event", id.data);
   revalidatePath("/admin/reconciliation");
   return { ok: true, message: "Event reprocessed." };
+}
+
+/** "Sync with Stripe": replays recent Stripe payment events so gifts stuck as pending (a missed webhook) are updated. */
+export async function syncWithStripe(_: AdminState, form: FormData): Promise<AdminState> {
+  const { user } = await requirePermission("finance.view");
+  const days = z.coerce.number().int().min(1).max(30).catch(7).parse(form.get("days") ?? 7);
+  let r;
+  try { r = await syncRecentStripeEvents({ days }); } catch { return { error: "Could not reach Stripe. Check the Stripe keys and try again." }; }
+  await audit(user.id, "webhook.retry", "stripe_sync", undefined, { days, ...r });
+  revalidatePath("/admin/reconciliation");
+  revalidatePath("/admin/donors", "layout");
+  return {
+    ok: !r.failed,
+    message: `Checked ${r.checked} Stripe event${r.checked === 1 ? "" : "s"} from the last ${days} days: ${r.processed} applied, ${r.alreadyHandled} already up to date${r.failed ? `, ${r.failed} failed (listed below to retry)` : ""}.`,
+  };
 }

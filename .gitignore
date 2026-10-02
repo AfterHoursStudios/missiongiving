@@ -44,3 +44,73 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# donor data and imports: personal information, never commit (and never put it in /public)
+/public/Import/
+/public/images/Donors.xlsx
+/public/images/DP *.png
+/data/
+/supabase/dev/*.json
+
+# reference screenshots and source artwork (not used by the site)
+/public/images/Form Builder Sample.png
+/public/images/Form Sample.png
+/public/images/To do*.png
+/public/images/UI*.png
+/public/images/Mission Giving.png
+
+# local AI-tool / skills folders
+/skills/
+/skills-lock.json
+/.adal/
+/.agents/
+/.aider-desk/
+/.augment/
+/.autohand/
+/.bob/
+/.claude/
+/.codeartsdoer/
+/.codebuddy/
+/.codestudio/
+/.commandcode/
+/.continue/
+/.cortex/
+/.crush/
+/.devin/
+/.forge/
+/.fx/
+/.goose/
+/.grok/
+/.hermes/
+/.iflow/
+/.inferencesh/
+/.jazz/
+/.junie/
+/.kimchi/
+/.kiro/
+/.kode/
+/.lingma/
+/.mcpjam/
+/.minimax/
+/.moxby/
+/.mux/
+/.neovate/
+/.ona/
+/.openhands/
+/.pi/
+/.pochi/
+/.posit/
+/.qoder/
+/.qwen/
+/.reasonix/
+/.roo/
+/.rovodev/
+/.tabnine/
+/.terramind/
+/.tinycloud/
+/.trae/
+/.vibe/
+/.windsurf/
+/.zcode/
+/.zencoder/
+/public/images/mission-giving-hero.png
