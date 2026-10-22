@@ -7,6 +7,9 @@ const money = (label: string) => z.string().trim().transform((v, ctx) => {
 
 export const OFFLINE_METHODS = ["check", "cash", "wire", "other"] as const;
 
+/** "+ New designation" on the Add gift forms: the name typed for a designation to create with the gift. Blank = none. */
+export const newDesignationField = z.string().trim().max(120, "Keep the designation name under 120 characters").optional().transform((v) => v || null);
+
 /** A message template key picked as a gift's thank-you (custom keys may end in a number, e.g. "thank_you_2"). Blank = none. */
 export const thankYouTemplateField = z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().regex(/^[a-z0-9_]+$/).max(80).optional());
 
@@ -17,6 +20,7 @@ export const offlineGiftSchema = z.object({
   amount: money("Amount").pipe(z.number().max(100_000_000, "Amount is too large")),
   date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter the date received").refine((v) => !Number.isNaN(Date.parse(v)), "Enter a valid date"),
   project_id: z.string().trim().optional().transform((v) => v || null).pipe(z.string().uuid().nullable()),
+  new_designation: newDesignationField,
   method: z.enum(OFFLINE_METHODS),
   reference: z.string().trim().max(60).optional().transform((v) => v || null),
   thank_you_template: thankYouTemplateField,

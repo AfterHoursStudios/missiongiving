@@ -6,6 +6,7 @@ import { SimpleForm, TextInput } from "@/components/donor/forms";
 import { isPlaceholderEmail } from "@/lib/admin/dp-import";
 import { loadThankYouChoices } from "@/lib/admin/thank-you-templates";
 import { ThankYouPicker } from "@/components/admin/thank-you-picker";
+import { DesignationSelect } from "@/components/admin/designation-select";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Record offline gift" };
@@ -33,7 +34,7 @@ export default async function OfflineGiftPage({ searchParams }: { searchParams: 
           <TextInput label="Amount (USD)" name="amount" required />
           <div><label htmlFor="date" className="block font-semibold">Date received</label><input id="date" type="date" name="date" required className={sel} /></div>
         </div>
-        <div><label htmlFor="project" className="block font-semibold">Designation</label><select id="project" name="project_id" className={sel}><option value="">General Fund</option>{(projects ?? []).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</select></div>
+        <DesignationSelect projects={projects ?? []} className={sel} names={{ projectId: "project_id", newDesignation: "new_designation" }} />
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label htmlFor="method" className="block font-semibold">Received as</label><select id="method" name="method" className={sel}>{OFFLINE_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
           <TextInput label="Check or reference number" name="reference" />

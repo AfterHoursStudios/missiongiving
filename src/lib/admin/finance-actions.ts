@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -11,6 +12,7 @@ import { getStripe, isStripeConfigured, stripeLookups } from "@/lib/stripe/clien
 import { processWebhook } from "@/lib/stripe/handlers";
 import { supabaseDonationsRepo } from "@/lib/donations/repo.supabase";
 import { notifyDonor } from "@/lib/donations/notify";
+import { createQuickDesignation } from "./quick-designation";
 import { rateLimit } from "@/lib/rate-limit";
 import { offlineGiftSchema, refundSchema, validateRefund } from "./finance-logic";
 import type { AdminState } from "./donor-actions";
@@ -34,6 +36,11 @@ export async function recordOfflineGift(_: AdminState, form: FormData): Promise<
   }
 
   let fundId: string | null = null;
+  if (!v.project_id && v.new_designation) {
+    const created = await createQuickDesignation(db, user.id, v.new_designation);
+    if ("error" in created) return { error: created.error };
+    v.project_id = created.projectId;
+  }
   if (v.project_id) {
     const { data: proj } = await db.from("projects").select("fund_id").eq("id", v.project_id).maybeSingle();
     if (!proj) return { error: "That project does not exist." };
@@ -57,7 +64,11 @@ export async function recordOfflineGift(_: AdminState, form: FormData): Promise<
   // The donor is emailed only when staff picked a thank-you message (it carries the receipt too).
   if (v.thank_you_template) notifyDonor("donation_success", { donationId: gift.id }).catch(() => {});
   revalidatePath("/admin");
-  return { ok: true, message: `Offline gift recorded${v.thank_you_template ? " and thank-you message emailed" : ""}.` };
+  // Back to the donor's gift list, which shows a confirmation for these flags.
+  const flags = new URLSearchParams({ tab: "gifts", recorded: "offline" });
+  if (v.thank_you_template) flags.set("emailed", "1");
+  if (v.new_designation) flags.set("designation", "new");
+  redirect(`/admin/donors/${donor.id}?${flags}`);
 }
 
 /**

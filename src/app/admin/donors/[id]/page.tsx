@@ -33,7 +33,7 @@ const TAB_KEYS = ["main", "gifts", "pledges", "contacts", "accounts"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 export default async function DonorDetail({ params, searchParams }: {
-  params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string; failed?: string; setup_intent?: string }>;
+  params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string; failed?: string; setup_intent?: string; recorded?: string; emailed?: string; designation?: string }>;
 }) {
   const { user, perms } = await requirePermission("donors.view");
   const { id } = await params;
@@ -166,6 +166,13 @@ export default async function DonorDetail({ params, searchParams }: {
         </TabToolbar>
       )}
 
+      {/* Arrived here from Record offline gift (see recordOfflineGift). */}
+      {tab === "gifts" && sp.recorded === "offline" && (
+        <p role="status" className="mt-4 rounded-md bg-success-bg p-3 text-success">
+          Offline gift recorded{sp.emailed === "1" ? " and thank-you message emailed" : ""}.
+          {sp.designation === "new" && " The new designation was created, and a to-do reminds you to add its details."}
+        </p>
+      )}
       {tab === "gifts" && <GiftsTab donorId={id} gifts={gifts} page={page} showFailed={sp.failed === "1"} canEdit={canEdit} canRefund={perms.has("refunds.issue")} canGift={canFinance} />}
       {tab === "pledges" && <PledgesTab donorId={id} pledges={pledges} gifts={gifts} page={page} canGift={canFinance} />}
       {contactsData && (

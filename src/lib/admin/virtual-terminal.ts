@@ -10,7 +10,8 @@ import { audit } from "@/lib/audit";
 import { isPlaceholderEmail } from "@/lib/admin/dp-import";
 import { reconcileDonation } from "@/lib/stripe/reconcile-donation";
 import type { CheckoutResult } from "@/lib/donations/actions";
-import { thankYouTemplateField } from "@/lib/admin/finance-logic";
+import { newDesignationField, thankYouTemplateField } from "@/lib/admin/finance-logic";
+import { createQuickDesignation } from "@/lib/admin/quick-designation";
 
 
 const schema = z.object({
@@ -23,6 +24,7 @@ const schema = z.object({
   amount: z.string().trim(),
   frequency: z.enum(["one_time", "monthly", "yearly"]),
   projectId: z.union([z.string().uuid(), z.literal("")]).optional().transform((v) => v || null),
+  newDesignation: newDesignationField, // "+ New designation": created with the gift when no designation is chosen
   note: z.string().trim().max(1000).optional(),
   // A card/bank account already saved on the donor's Stripe customer: charged directly, no card entry screen.
   paymentMethodId: z.string().regex(/^pm_[A-Za-z0-9]+$/).optional(),
@@ -59,6 +61,11 @@ export async function startAdminCharge(raw: unknown): Promise<AdminChargeResult>
 
   let fundId: string | null = null;
   let projectId: string | null = null;
+  if (!input.projectId && input.newDesignation) {
+    const created = await createQuickDesignation(db, user.id, input.newDesignation);
+    if ("error" in created) return { ok: false, error: created.error };
+    input.projectId = created.projectId;
+  }
   if (input.projectId) {
     const { data: project } = await db.from("projects").select("id, fund_id").eq("id", input.projectId).maybeSingle();
     if (!project) return { ok: false, error: "That project was not found." };

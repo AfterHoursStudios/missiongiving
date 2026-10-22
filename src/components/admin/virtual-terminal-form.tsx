@@ -6,6 +6,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { startAdminCharge } from "@/lib/admin/virtual-terminal";
 import { PayForm } from "@/components/donate/donate-flow";
 import { ThankYouPicker } from "@/components/admin/thank-you-picker";
+import { DesignationSelect } from "@/components/admin/designation-select";
 import type { ThankYouChoice } from "@/lib/admin/thank-you-templates";
 
 const inputCls = "mt-1.5 min-h-11 w-full rounded-md border border-ink-soft bg-white px-3";
@@ -24,7 +25,7 @@ export function VirtualTerminalForm({ projects, publishableKey, donor, savedMeth
   /** Gifts → One-time gift: the frequency is fixed to one time and the Frequency choice is hidden. */
   oneTimeOnly?: boolean;
 }) {
-  const [d, setD] = useState({ email: "", firstName: "", lastName: "", phone: "", amount: "", frequency: "one_time" as "one_time" | "monthly" | "yearly", projectId: "", note: "", thankYouTemplate: "" });
+  const [d, setD] = useState({ email: "", firstName: "", lastName: "", phone: "", amount: "", frequency: "one_time" as "one_time" | "monthly" | "yearly", projectId: "", newDesignation: "", pickingNew: false, note: "", thankYouTemplate: "" });
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [session, setSession] = useState<{ clientSecret: string; donationId: string } | null>(null);
@@ -60,9 +61,10 @@ export function VirtualTerminalForm({ projects, publishableKey, donor, savedMeth
     setError(null);
     if (!donor && (!d.email.trim() || !d.firstName.trim() || !d.lastName.trim())) return setError("Enter the donor's name and email.");
     if (!d.amount.trim() || Number.isNaN(Number(d.amount))) return setError("Enter a valid amount.");
+    if (d.pickingNew && !d.newDesignation.trim()) return setError("Enter a name for the new designation.");
     startTransition(async () => {
       // From a donor's page the donor is already known: send their id, not the (hidden, empty) contact fields.
-      const gift = { amount: d.amount, frequency: d.frequency, note: d.note, projectId: d.projectId || undefined, thankYouTemplate: d.thankYouTemplate || undefined };
+      const gift = { amount: d.amount, frequency: d.frequency, note: d.note, projectId: d.projectId || undefined, newDesignation: d.newDesignation || undefined, thankYouTemplate: d.thankYouTemplate || undefined };
       const res = await startAdminCharge(donor
         ? { ...gift, donorId: donor.id, paymentMethodId: chosen?.id }
         : { ...gift, email: d.email, firstName: d.firstName, lastName: d.lastName, phone: d.phone });
@@ -102,11 +104,7 @@ export function VirtualTerminalForm({ projects, publishableKey, donor, savedMeth
           </div>
         )}
       </div>
-      <div><label className="block font-semibold">Designation</label>
-        <select className={inputCls} value={d.projectId} onChange={(e) => setD({ ...d, projectId: e.target.value })}>
-          <option value="">General Fund</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-        </select>
-      </div>
+      <DesignationSelect projects={projects} className={inputCls} onChange={(v) => setD((cur) => ({ ...cur, ...v }))} />
       {donor && savedMethods.length > 0 && (
         <fieldset>
           <legend className="font-semibold">Payment method</legend>
