@@ -74,7 +74,8 @@ const noEmail = donors.filter((d) => !d.email).length;
 const doNotEmail = donors.filter((d) => d.doNotEmail), doNotMail = donors.filter((d) => d.doNotMail);
 console.log(`→ ${inserts.length} new donors, ${updates.length} existing donors updated, ${noEmail} without an email (placeholder address).`);
 if (hasTotals) console.log(`→ DonorPerfect giving history: $${(donors.reduce((s, d) => s + d.totalGivenCents, 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })} across ${donors.reduce((s, d) => s + d.giftCount, 0)} gifts (shown on donor records; not added to reports).`);
-console.log(`→ DonorPerfect contact preferences: ${doNotEmail.length} "Do Not Email" (opted out of news, project updates and statement emails; tagged "${TAG_NO_EMAIL}"), ${doNotMail.length} "Do Not Send Mail" (tagged "${TAG_NO_MAIL}").`);
+const doNotContact = donors.filter((d) => d.doNotEmail || d.doNotMail);
+console.log(`→ DonorPerfect contact preferences: ${doNotContact.length} donors set to Do not contact with every email choice unticked (${doNotEmail.length} "Do Not Email", tagged "${TAG_NO_EMAIL}"; ${doNotMail.length} "Do Not Send Mail", tagged "${TAG_NO_MAIL}").`);
 if (!apply) { console.log("\nPreview only. Re-run with --apply to import."); process.exit(0); }
 
 for (let i = 0; i < inserts.length; i += 200) {
@@ -90,7 +91,8 @@ for (const [n, u] of updates.entries()) {
   if (error) throw new Error(`Update failed for donor ${u.id}: ${error.message}`);
   if (n % 50 === 0) process.stdout.write(`  updated ${n + 1}/${updates.length}\r`);
 }
-// DonorPerfect contact preferences. Only ever turns email OFF; nothing here sends a message.
+// DonorPerfect contact preferences: "Do Not Email" or "Do Not Send Mail" (or both) → status Do not contact, with news,
+// project updates, statement email and the suppression box all unticked. Only ever turns contact OFF; nothing is sent.
 if (doNotEmail.length || doNotMail.length) {
   const idByDp = new Map<string, string>();
   const dpIds = [...new Set([...doNotEmail, ...doNotMail].map((d) => d.dpId))];
@@ -99,10 +101,13 @@ if (doNotEmail.length || doNotMail.length) {
     if (error) throw new Error(error.message);
     for (const r of data ?? []) idByDp.set(r.dp_id, r.id);
   }
-  const noEmailIds = doNotEmail.map((d) => idByDp.get(d.dpId)).filter((x): x is string => !!x);
-  for (let i = 0; i < noEmailIds.length; i += 200) {
-    const { error } = await db.from("communication_preferences").upsert(noEmailIds.slice(i, i + 200).map((donor_id) => ({ donor_id, marketing_email: false, project_updates: false, annual_statement_email: false, updated_at: now })), { onConflict: "donor_id" });
-    if (error) throw new Error(`Could not save email opt-outs: ${error.message}`);
+  const noContactIds = doNotContact.map((d) => idByDp.get(d.dpId)).filter((x): x is string => !!x);
+  for (let i = 0; i < noContactIds.length; i += 200) {
+    const batch = noContactIds.slice(i, i + 200);
+    const { error } = await db.from("communication_preferences").upsert(batch.map((donor_id) => ({ donor_id, marketing_email: false, project_updates: false, annual_statement_email: false, suppressed: false, updated_at: now })), { onConflict: "donor_id" });
+    if (error) throw new Error(`Could not save contact preferences: ${error.message}`);
+    const { error: se } = await db.from("donor_profiles").update({ status: "do_not_contact" }).in("id", batch);
+    if (se) throw new Error(`Could not set Do not contact: ${se.message}`);
   }
   for (const [tag, list] of [[TAG_NO_EMAIL, doNotEmail], [TAG_NO_MAIL, doNotMail]] as const) {
     if (!list.length) continue;
@@ -114,7 +119,7 @@ if (doNotEmail.length || doNotMail.length) {
       if (ae) throw new Error(`Could not tag donors ${tag}: ${ae.message}`);
     }
   }
-  console.log(`  contact preferences: ${noEmailIds.length} opted out of email; tags added.`);
+  console.log(`  contact preferences: ${noContactIds.length} set to Do not contact; tags added.`);
 }
 await db.from("audit_logs").insert({ actor_id: null, action: "donor.create", entity_type: "import", details: { source: "donorperfect", inserted: inserts.length, updated: updates.length, do_not_email: doNotEmail.length, do_not_mail: doNotMail.length } });
 console.log(`\nDone: ${inserts.length} added, ${updates.length} updated.`);
