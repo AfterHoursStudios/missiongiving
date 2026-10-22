@@ -14,7 +14,8 @@ import { uploadEmailImage } from "@/lib/admin/email-images";
 import { TEMPLATE_VARIABLES, TEMPLATE_VARIABLE_LABELS } from "@/lib/template-variables";
 import { EMAIL_FONTS, normalizeFontStack } from "@/lib/email-fonts";
 
-const SIZES = [{ label: "Small", value: "13px" }, { label: "Normal", value: "" }, { label: "Large", value: "18px" }, { label: "Extra large", value: "24px" }];
+/** Font sizes in px (the email sanitizer allows 1-2 digit px values). Unset = the email default, 15 px. */
+const SIZES = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 22, 24, 28, 32, 36, 48];
 const btn = "inline-flex size-10 items-center justify-center rounded-md text-ink hover:bg-paper-2 disabled:opacity-40 aria-pressed:bg-teal-800/10 aria-pressed:text-teal-800";
 const sel = "min-h-10 rounded-md border border-line bg-white px-2 text-sm";
 
@@ -103,8 +104,10 @@ function Toolbar({ editor }: { editor: Editor }) {
           <option value="">Default font</option>
           {EMAIL_FONTS.map((f) => <option key={f.label} value={f.stack} style={{ fontFamily: f.stack }}>{f.label}</option>)}
         </select>
-        <select aria-label="Text size" title="Text size" className={sel} value={s.size} onChange={(e) => (e.target.value ? c().setFontSize(e.target.value).run() : c().unsetFontSize().run())}>
-          {SIZES.map((o) => <option key={o.label} value={o.value}>{o.label}</option>)}
+        <select aria-label="Font size" title="Font size" className={sel} value={s.size} onChange={(e) => (e.target.value ? c().setFontSize(e.target.value).run() : c().unsetFontSize().run())}>
+          <option value="">Size: 15 (default)</option>
+          {SIZES.map((n) => <option key={n} value={`${n}px`}>{n}</option>)}
+          {s.size && !SIZES.some((n) => `${n}px` === s.size) && <option value={s.size}>{s.size.replace("px", "")}</option>}
         </select>
         <select aria-label="Paragraph style" title="Paragraph style" className={sel} value={s.block}
           onChange={(e) => (e.target.value === "p" ? c().setParagraph().run() : c().setHeading({ level: e.target.value === "h2" ? 2 : 3 }).run())}>
