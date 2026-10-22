@@ -26,3 +26,12 @@ describe("sanitizeEmailHtml (template builder output)", () => {
       .toBe("Hello {{donor_first_name}},\n\nOne");
   });
 });
+
+describe("email fonts", () => {
+  it("keeps the builder's fonts, quoted or not, and drops any other font", () => {
+    expect(sanitizeEmailHtml('<span style="font-family: Georgia, serif">a</span>')).toBe('<span style="font-family:Georgia, serif">a</span>');
+    expect(sanitizeEmailHtml('<span style="font-family: &quot;Times New Roman&quot;, Times, serif">a</span>')).toContain("Times New Roman");
+    expect(sanitizeEmailHtml('<span style="font-family: Comic Sans MS">a</span>')).toBe("<span>a</span>");
+    expect(sanitizeEmailHtml('<span style="font-family: Arial, url(x)">a</span>')).toBe("<span>a</span>");
+  });
+});

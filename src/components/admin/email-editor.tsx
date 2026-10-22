@@ -5,20 +5,21 @@ import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/r
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import TextAlign from "@tiptap/extension-text-align";
-import { FontSize, TextStyle } from "@tiptap/extension-text-style";
+import { FontFamily, FontSize, TextStyle } from "@tiptap/extension-text-style";
 import { CharacterCount } from "@tiptap/extensions";
 import {
   AlignCenter, AlignLeft, AlignRight, Bold, ImagePlus, Italic, Link2, List, ListOrdered, Redo2, Underline, Undo2,
 } from "lucide-react";
 import { uploadEmailImage } from "@/lib/admin/email-images";
 import { TEMPLATE_VARIABLES, TEMPLATE_VARIABLE_LABELS } from "@/lib/template-variables";
+import { EMAIL_FONTS, normalizeFontStack } from "@/lib/email-fonts";
 
 const SIZES = [{ label: "Small", value: "13px" }, { label: "Normal", value: "" }, { label: "Large", value: "18px" }, { label: "Extra large", value: "24px" }];
 const btn = "inline-flex size-10 items-center justify-center rounded-md text-ink hover:bg-paper-2 disabled:opacity-40 aria-pressed:bg-teal-800/10 aria-pressed:text-teal-800";
 const sel = "min-h-10 rounded-md border border-line bg-white px-2 text-sm";
 
 /**
- * The message box of the template builder: a formatted-text editor (bold, italic, underline, text size, paragraph style,
+ * The message box of the template builder: a formatted-text editor (bold, italic, underline, font, text size, paragraph style,
  * alignment, lists, links, pictures and merge fields). Its HTML goes into a hidden input `name`, sanitized again on save.
  */
 export function EmailEditor({ name, initialHtml, labelledBy }: { name: string; initialHtml: string; labelledBy: string }) {
@@ -27,7 +28,7 @@ export function EmailEditor({ name, initialHtml, labelledBy }: { name: string; i
     immediatelyRender: false, // server-rendered page: create the editor in the browser only
     extensions: [
       StarterKit.configure({ heading: { levels: [2, 3] }, code: false, codeBlock: false, horizontalRule: false, link: { openOnClick: false, protocols: ["mailto"], defaultProtocol: "https" } }),
-      TextStyle, FontSize,
+      TextStyle, FontSize, FontFamily,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Image.configure({ resize: { enabled: true, alwaysPreserveAspectRatio: true, minWidth: 40 } }),
       CharacterCount,
@@ -61,6 +62,7 @@ function Toolbar({ editor }: { editor: Editor }) {
       left: e.isActive({ textAlign: "left" }), center: e.isActive({ textAlign: "center" }), right: e.isActive({ textAlign: "right" }),
       block: e.isActive("heading", { level: 2 }) ? "h2" : e.isActive("heading", { level: 3 }) ? "h3" : "p",
       size: (e.getAttributes("textStyle").fontSize as string | undefined) ?? "",
+      font: normalizeFontStack((e.getAttributes("textStyle").fontFamily as string | undefined) ?? ""),
       undo: e.can().undo(), redo: e.can().redo(),
     }),
   });
@@ -94,6 +96,11 @@ function Toolbar({ editor }: { editor: Editor }) {
         <button type="button" className={btn} aria-pressed={s.bold} aria-label="Bold" title="Bold" onClick={() => c().toggleBold().run()}><Bold size={18} aria-hidden="true" /></button>
         <button type="button" className={btn} aria-pressed={s.italic} aria-label="Italic" title="Italic" onClick={() => c().toggleItalic().run()}><Italic size={18} aria-hidden="true" /></button>
         <button type="button" className={btn} aria-pressed={s.underline} aria-label="Underline" title="Underline" onClick={() => c().toggleUnderline().run()}><Underline size={18} aria-hidden="true" /></button>
+        <select aria-label="Font" title="Font" className={`${sel} max-w-40`} value={EMAIL_FONTS.some((f) => f.stack === s.font) ? s.font : ""}
+          onChange={(e) => (e.target.value ? c().setFontFamily(e.target.value).run() : c().unsetFontFamily().run())}>
+          <option value="">Default font</option>
+          {EMAIL_FONTS.map((f) => <option key={f.label} value={f.stack} style={{ fontFamily: f.stack }}>{f.label}</option>)}
+        </select>
         <select aria-label="Text size" title="Text size" className={sel} value={s.size} onChange={(e) => (e.target.value ? c().setFontSize(e.target.value).run() : c().unsetFontSize().run())}>
           {SIZES.map((o) => <option key={o.label} value={o.value}>{o.label}</option>)}
         </select>

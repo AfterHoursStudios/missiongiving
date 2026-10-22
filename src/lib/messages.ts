@@ -1,6 +1,7 @@
 import sanitizeHtml from "sanitize-html";
 
 import { TEMPLATE_VARIABLES, type TemplateVariable } from "./template-variables";
+import { EMAIL_FONT_PATTERNS } from "./email-fonts";
 
 export { TEMPLATE_VARIABLES, type TemplateVariable };
 export type TemplateVars = Partial<Record<TemplateVariable, string>>;
@@ -21,7 +22,7 @@ export function fillTemplate(text: string, vars: TemplateVars, mode: "html" | "t
 const ALIGN = { "text-align": [/^(left|right|center|justify)$/] };
 
 /**
- * Email markup from the template builder: text formatting, alignment, text sizes, links and pictures. Pictures must be
+ * Email markup from the template builder: text formatting, alignment, fonts and text sizes, links and pictures. Pictures must be
  * https URLs (ours are in the email-images bucket); scripts, event handlers, other styles and data: URLs are removed.
  */
 export function sanitizeEmailHtml(html: string) {
@@ -33,7 +34,7 @@ export function sanitizeEmailHtml(html: string) {
     },
     allowedStyles: {
       p: ALIGN, h2: ALIGN, h3: ALIGN, li: ALIGN,
-      span: { "font-size": [/^\d{1,2}px$/] },
+      span: { "font-size": [/^\d{1,2}px$/], "font-family": EMAIL_FONT_PATTERNS },
       img: { "max-width": [/^100%$/], height: [/^auto$/] },
     },
     allowedSchemes: ["https", "mailto"],
