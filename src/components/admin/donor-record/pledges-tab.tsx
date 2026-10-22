@@ -8,6 +8,8 @@ import type { GiftRow } from "./gifts-tab";
 export interface PledgeRow {
   id: string; amount_cents: number; frequency: string; status: string; created_at: string;
   next_charge_at: string | null; canceled_at: string | null; cancel_reason: string | null; project: string | null;
+  /** Set for a pledge imported from DonorPerfect, which still processes it (no Stripe subscription). */
+  dp_pledge_id?: string | null;
 }
 
 const date = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "—");
@@ -42,7 +44,7 @@ export function PledgesTab({ donorId, pledges, gifts, page, canGift }: { donorId
             const live = ["active", "past_due"].includes(r.status);
             return (
               <tr key={r.id} className="border-b border-line">
-                <td className={`${tdCls} tabular-nums`}>{date(r.created_at)}</td>
+                <td className={`${tdCls} tabular-nums`}>{date(r.created_at)}{r.dp_pledge_id && <span className="block text-sm text-ink-soft">DonorPerfect pledge #{r.dp_pledge_id}</span>}</td>
                 <td className={`${tdCls} text-right tabular-nums`}>{formatMoney(r.amount_cents)}</td>
                 <td className={tdCls}>{FREQUENCY_LABEL[r.frequency] ?? r.frequency}</td>
                 <td className={tdCls}>{r.project ?? "General Fund"}</td>
@@ -53,7 +55,7 @@ export function PledgesTab({ donorId, pledges, gifts, page, canGift }: { donorId
                 <td className={`${tdCls} text-right tabular-nums`}>{paid.count}</td>
                 <td className={`${tdCls} text-right tabular-nums`}>{formatMoney(paid.cents)}</td>
                 <td className={`${tdCls} tabular-nums`}>{date(paid.last)}</td>
-                <td className={`${tdCls} tabular-nums`}>{live ? date(r.next_charge_at) : "—"}</td>
+                <td className={`${tdCls} tabular-nums`}>{r.dp_pledge_id && live ? <span className="text-sm text-ink-soft">Billed in DonorPerfect</span> : live ? date(r.next_charge_at) : "—"}</td>
               </tr>
             );
           })}</tbody>

@@ -15,7 +15,7 @@ export default async function ReconciliationPage() {
   const db = createSupabaseAdminClient();
   const since = daysAgo(60);
   const [don, rec, ev] = await Promise.all([
-    db.from("donations").select("id, donor_id, amount_cents, refunded_cents, status, payment_method, frequency, donated_at, settled_at, donor_profiles(first_name, last_name), receipts(is_final)").is("archived_at", null).gte("donated_at", since).limit(5000),
+    db.from("donations").select("id, donor_id, amount_cents, refunded_cents, status, payment_method, frequency, donated_at, settled_at, donor_profiles(first_name, last_name), receipts(is_final)").is("archived_at", null).is("dp_gift_id", null).gte("donated_at", since).limit(5000),
     db.from("recurring_donations").select("id, donor_id, status, amount_cents, created_at, donor_profiles(first_name, last_name)").in("status", ["incomplete", "past_due"]),
     db.from("webhook_events").select("stripe_event_id, type, status, attempts, error, received_at").in("status", ["failed", "received"]).order("received_at", { ascending: false }).limit(200),
   ]);

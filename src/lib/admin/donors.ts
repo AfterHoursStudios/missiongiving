@@ -42,10 +42,21 @@ export async function queryDonors(query: DonorQuery, opts: { all?: boolean } = {
     if (query.recurring === "no") q = q.eq("active_recurring", 0);
     if (query.min !== undefined) q = q.gte("lifetime_cents", Math.round(query.min * 100));
     q = q.order(sortCol, { ascending: query.dir === "asc", nullsFirst: false }).order("last_name").order("id");
-    return opts.all ? q.limit(20000) : q.range((query.page - 1) * DONOR_PAGE_SIZE, query.page * DONOR_PAGE_SIZE - 1);
+    return q;
   };
-  let { data, count, error } = await run(SORTS[query.sort]);
-  if (error && FALLBACK_SORTS[SORTS[query.sort]]) ({ data, count, error } = await run(FALLBACK_SORTS[SORTS[query.sort]]));
+  // A page of the list, or (opts.all, for exports) every row in pages of 1,000: Supabase returns at most 1,000 per request.
+  const fetchRows = async (sortCol: string) => {
+    if (!opts.all) return run(sortCol).range((query.page - 1) * DONOR_PAGE_SIZE, query.page * DONOR_PAGE_SIZE - 1);
+    const rows: Record<string, unknown>[] = [];
+    for (let from = 0; ; from += 1000) {
+      const res = await run(sortCol).range(from, from + 999);
+      if (res.error) return res;
+      rows.push(...(res.data ?? []));
+      if ((res.data ?? []).length < 1000) return { ...res, data: rows };
+    }
+  };
+  let { data, count, error } = await fetchRows(SORTS[query.sort]);
+  if (error && FALLBACK_SORTS[SORTS[query.sort]]) ({ data, count, error } = await fetchRows(FALLBACK_SORTS[SORTS[query.sort]]));
   if (error) throw new Error(error.message);
   return { rows: data ?? [], total: count ?? 0 };
 }

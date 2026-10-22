@@ -66,3 +66,28 @@ describe("placeholder emails", () => {
     expect(isPlaceholderEmail("kay@example.com")).toBe(false);
   });
 });
+
+describe("mapRows: Report Builder contact export", () => {
+  const rows = [
+    ["Mission Giving export - Donors", "", "", "", "", "", "", "", ""],
+    ["First Name", "Last Name", "Email", "Donor ID", "Mobile Phone", "Home Phone", "Organization?", "Do Not Email", "Do Not Send Mail", "Email Status Descr"],
+    ["Ann", "Lee", "ann@example.org", "11", "", "555-0101", "N", "N", "Y", "Active"],
+    ["", "Grace Church", "office@grace.example", "12", "555-0102", "", "Y", "N", "N", "Do Not Email"],
+    ["Bo", "Ray", "", "13", "", "", "N", "Y", "N", ""],
+  ];
+  const r = mapRows(rows);
+
+  it("skips the title row above the headers", () => {
+    expect(r.donors.map((d) => d.dpId)).toEqual(["11", "12", "13"]);
+    expect(r.skipped).toEqual([]);
+  });
+  it("uses the first phone number filled in", () => {
+    expect(r.donors.map((d) => d.phone)).toEqual(["555-0101", "555-0102", null]);
+  });
+  it("treats DonorPerfect organization records as organizations", () => {
+    expect(r.donors[1]).toMatchObject({ organizationName: "Grace Church", firstName: "", lastName: "Grace Church" });
+  });
+  it("reads Do Not Email from the flag or the email status, and Do Not Send Mail", () => {
+    expect(r.donors.map((d) => [d.doNotEmail, d.doNotMail])).toEqual([[false, true], [true, false], [true, false]]);
+  });
+});

@@ -1,23 +1,24 @@
 import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import type { DonorFacts } from "./audience";
 
 const SETTLED = ["succeeded", "partially_refunded", "refunded"];
 
 /**
  * Builds the facts needed to select an audience. Callers MUST have passed requirePermission("comms.send").
- * Loaded in memory (up to 20,000 donors); move to SQL if the donor base grows well beyond that.
+ * Loaded in memory (every donor, in pages of 1,000); move to SQL if the donor base grows well beyond that.
  */
 export async function loadAudienceData(): Promise<{ donors: DonorFacts[]; suppressed: Set<string> }> {
   const db = createSupabaseAdminClient();
   const [summary, regions, prefs, recurring, gifts, tags, supp] = await Promise.all([
-    db.from("donor_summary").select("id, email, first_name, last_name, status, lifetime_cents, last_gift_at").limit(20000),
-    db.from("donor_profiles").select("id, region").is("deleted_at", null).limit(20000),
-    db.from("communication_preferences").select("donor_id, marketing_email, project_updates, suppressed").limit(20000),
-    db.from("recurring_donations").select("donor_id, frequency").eq("status", "active").limit(50000),
-    db.from("donations").select("donor_id, project_id").not("project_id", "is", null).in("status", SETTLED).limit(100000),
-    db.from("donor_tag_assignments").select("donor_id, tag_id").limit(100000),
-    db.from("email_suppressions").select("email").limit(100000),
+    fetchAll(() => db.from("donor_summary").select("id, email, first_name, last_name, status, lifetime_cents, last_gift_at")),
+    fetchAll(() => db.from("donor_profiles").select("id, region").is("deleted_at", null)),
+    fetchAll(() => db.from("communication_preferences").select("donor_id, marketing_email, project_updates, suppressed"), { orderBy: "donor_id" }),
+    fetchAll(() => db.from("recurring_donations").select("id, donor_id, frequency").eq("status", "active")),
+    fetchAll(() => db.from("donations").select("id, donor_id, project_id").not("project_id", "is", null).in("status", SETTLED)),
+    fetchAll(() => db.from("donor_tag_assignments").select("donor_id, tag_id"), { orderBy: ["donor_id", "tag_id"] }),
+    fetchAll(() => db.from("email_suppressions").select("email"), { orderBy: "email" }),
   ]);
   if (summary.error) throw new Error(summary.error.message);
 

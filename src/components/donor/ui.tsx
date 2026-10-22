@@ -141,5 +141,5 @@ export function ProgressBar({ label, hint, fundedCents, totalCents }: { label?: 
   );
 }
 
-export const FREQUENCY_LABEL: Record<string, string> = { one_time: "One time", monthly: "Monthly", yearly: "Yearly" };
+export { FREQUENCY_LABELS as FREQUENCY_LABEL } from "@/lib/donations/frequency";
 export const METHOD_LABEL: Record<string, string> = { card: "Card", us_bank_account: "Bank (ACH)", offline: "Offline" };

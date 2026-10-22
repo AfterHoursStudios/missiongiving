@@ -22,7 +22,7 @@ const LOG_KIND: Record<NotifyKind, CommunicationKind> = {
   donation_success: "receipt", ach_confirmed: "receipt", payment_failed: "payment_failed", recurring_canceled: "recurring_canceled", refund_issued: "refund",
 };
 
-const FREQ_LABEL: Record<string, string> = { one_time: "one-time", monthly: "monthly", yearly: "yearly" };
+const FREQ_LABEL: Record<string, string> = { one_time: "one-time", monthly: "monthly", yearly: "yearly", biweekly: "bi-weekly", irregular: "recurring" };
 
 type SendableTemplate = { subject: string; body_html: string; body_text: string; reply_to?: string | null };
 

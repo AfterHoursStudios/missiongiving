@@ -1,5 +1,6 @@
 import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import type { DonationRec, ExpenseRec, ProjectRec, RecurringRec } from "./metrics";
 
 /**
@@ -10,8 +11,8 @@ import type { DonationRec, ExpenseRec, ProjectRec, RecurringRec } from "./metric
 export async function loadDashboardData() {
   const db = createSupabaseAdminClient();
   const [donations, recurring, expenses, projects] = await Promise.all([
-    db.from("donations").select("id, donor_id, amount_cents, refunded_cents, status, frequency, payment_method, settled_at, donated_at, projects(title), donation_tiers(public_title)").is("archived_at", null).limit(50000),
-    db.from("recurring_donations").select("donor_id, amount_cents, frequency, status"),
+    fetchAll(() => db.from("donations").select("id, donor_id, amount_cents, refunded_cents, status, frequency, payment_method, settled_at, donated_at, projects(title), donation_tiers(public_title)").is("archived_at", null)),
+    fetchAll(() => db.from("recurring_donations").select("donor_id, amount_cents, frequency, status")),
     db.from("expenses").select("expense_date, amount_cents, approval").is("archived_at", null),
     db.from("projects").select("id, title, goal_cents, offline_adjustment_cents, end_date, status").neq("status", "archived"),
   ]);

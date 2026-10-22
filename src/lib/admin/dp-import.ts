@@ -37,11 +37,17 @@ export interface ImportDonor {
   dpId: string; firstName: string; lastName: string; organizationName: string | null; email: string | null;
   phone: string | null; address1: string | null; address2: string | null; city: string | null; region: string | null; postalCode: string | null; country: string | null;
   score: number | null; totalGivenCents: number; giftCount: number; lastGiftAt: string | null; lastGiftCents: number | null;
+  /** DonorPerfect contact preferences: "Do Not Email" (flag or email status) and "Do Not Send Mail" (postal). */
+  doNotEmail: boolean; doNotMail: boolean;
 }
 export interface ImportResult { donors: ImportDonor[]; skipped: { row: number; reason: string }[]; columns: Record<string, string> }
 
 /** Accepted header spellings (lower-cased, spaces collapsed) for each field. */
-const HEADERS: Record<keyof ImportDonor | "fullName" | "optionalLine", string[]> = {
+const HEADERS: Record<keyof ImportDonor | "fullName" | "optionalLine" | "orgFlag" | "emailStatus", string[]> = {
+  orgFlag: ["organization?", "org_rec", "org rec"], // DonorPerfect's Y/N "this record is an organization"
+  doNotEmail: ["do not email", "no_email"],
+  doNotMail: ["do not send mail", "nomail"],
+  emailStatus: ["email status descr", "email status description", "email status", "email_status"],
   dpId: ["id", "donor id", "donor_id", "constituent id"],
   fullName: ["donor name", "full name", "name", "constituent name"],
   firstName: ["first name", "first_name", "first"],
@@ -65,6 +71,7 @@ const SUFFIX = /^(jr|sr|ii|iii|iv|md|phd|dds)\.?$/i;
 /** Surname particles that belong with the last name: "Becky St. Clair", "Brian La Tour", "Nancy Delos Reyes". */
 const PARTICLE = /^(st\.?|la|le|de|del|della|delos|der|da|di|du|van|von|mac)$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const YES = /^(y|yes|true|1)$/i;
 
 /** Splits "Charles & Kelley Downing" → first "Charles & Kelley", last "Downing"; keeps suffixes with the last name. */
 export function splitName(full: string): { first: string; last: string } {
@@ -91,10 +98,15 @@ export function toIsoDate(v: string): string | null {
   return null;
 }
 
-/** Maps the sheet's rows (header first) to donors. Rows without an ID or a name are skipped with a reason. */
+/**
+ * Maps the sheet's rows to donors. The header is the first row naming an ID column, so a title row above it (as in
+ * DonorPerfect's Report Builder Excel export) is skipped. Rows without an ID or a name are skipped with a reason.
+ */
 export function mapRows(rows: string[][]): ImportResult {
-  const [header = [], ...body] = rows;
-  const norm = header.map((h) => h.trim().toLowerCase().replace(/\s+/g, " "));
+  const normRow = (r: string[]) => r.map((h) => String(h ?? "").trim().toLowerCase().replace(/\s+/g, " "));
+  const headerAt = Math.max(0, rows.slice(0, 5).findIndex((r) => normRow(r).some((h) => HEADERS.dpId.includes(h))));
+  const header = rows[headerAt] ?? [], body = rows.slice(headerAt + 1);
+  const norm = normRow(header);
   const idx = {} as Record<keyof typeof HEADERS, number>;
   const columns: Record<string, string> = {};
   for (const [field, names] of Object.entries(HEADERS) as [keyof typeof HEADERS, string[]][]) {
@@ -106,11 +118,14 @@ export function mapRows(rows: string[][]): ImportResult {
   if (idx.fullName < 0 && idx.lastName < 0) throw new Error(`No name column found. Columns in the file: ${header.join(", ")}`);
 
   const get = (r: string[], f: keyof typeof HEADERS) => (idx[f] >= 0 ? String(r[idx[f]] ?? "").trim() : "");
+  // Every phone column present, in HEADERS order (mobile first): a donor's number is the first one filled in.
+  const phoneCols = HEADERS.phone.map((n) => norm.indexOf(n)).filter((i, k, a) => i >= 0 && a.indexOf(i) === k);
+  const phoneOf = (r: string[]) => phoneCols.map((i) => String(r[i] ?? "").trim()).find(Boolean) ?? "";
   const donors: ImportDonor[] = [];
   const skipped: ImportResult["skipped"] = [];
   const seen = new Set<string>();
   body.forEach((r, i) => {
-    const row = i + 2; // spreadsheet row number
+    const row = headerAt + i + 2; // spreadsheet row number
     const dpId = get(r, "dpId");
     if (!dpId) return skipped.push({ row, reason: "no ID" });
     if (seen.has(dpId)) return skipped.push({ row, reason: `duplicate ID ${dpId}` });
@@ -118,17 +133,20 @@ export function mapRows(rows: string[][]): ImportResult {
     if (!full) return skipped.push({ row, reason: "no name" });
     seen.add(dpId);
 
-    const org = get(r, "organizationName") || (isOrganizationName(full) && !get(r, "firstName") ? full : "");
+    const flaggedOrg = YES.test(get(r, "orgFlag"));
+    const org = get(r, "organizationName") || ((flaggedOrg || isOrganizationName(full)) && !get(r, "firstName") ? full : "");
     const split = get(r, "lastName") ? { first: get(r, "firstName"), last: get(r, "lastName") } : org === full ? { first: "", last: full } : splitName(full);
     const email = get(r, "email").toLowerCase();
     const opt = get(r, "optionalLine");
     donors.push({
       dpId, firstName: split.first, lastName: split.last, organizationName: org || (opt && isOrganizationName(opt) ? opt : null),
-      email: EMAIL.test(email) ? email : null, phone: get(r, "phone") || null,
+      email: EMAIL.test(email) ? email : null, phone: phoneOf(r) || null,
       address1: get(r, "address1") || null, address2: get(r, "address2") || null, city: get(r, "city") || null,
       region: get(r, "region") || null, postalCode: get(r, "postalCode") || null, country: get(r, "country").toUpperCase().slice(0, 2) || null,
       score: int(get(r, "score")), totalGivenCents: cents(get(r, "totalGivenCents")) ?? 0, giftCount: int(get(r, "giftCount")) ?? 0,
       lastGiftAt: toIsoDate(get(r, "lastGiftAt")), lastGiftCents: cents(get(r, "lastGiftCents")),
+      doNotEmail: YES.test(get(r, "doNotEmail")) || /do not email|unsubscribed|opted out/i.test(get(r, "emailStatus")),
+      doNotMail: YES.test(get(r, "doNotMail")),
     });
   });
   return { donors, skipped, columns };

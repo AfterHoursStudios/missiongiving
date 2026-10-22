@@ -1,5 +1,6 @@
 import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import type { FBudget, FDonation, FExpense, FunctionalClass, Restriction } from "./financials";
 
 const one = <T,>(v: T | T[] | null | undefined) => (Array.isArray(v) ? v[0] : v) ?? null;
@@ -11,8 +12,8 @@ const one = <T,>(v: T | T[] | null | undefined) => (Array.isArray(v) ? v[0] : v)
 export async function loadReportData() {
   const db = createSupabaseAdminClient();
   const [d, e, b, c, funds, projects] = await Promise.all([
-    db.from("donations").select("id, donor_id, amount_cents, refunded_cents, fee_cents, status, frequency, payment_method, is_offline, fund_id, project_id, settled_at, donated_at, funds(name, restriction), projects(title)").is("archived_at", null).limit(100000),
-    db.from("expenses").select("id, expense_date, amount_cents, category_id, project_id, restriction, approval, expense_categories(name, functional_class), projects(title)").is("archived_at", null).limit(100000),
+    fetchAll(() => db.from("donations").select("id, donor_id, amount_cents, refunded_cents, fee_cents, status, frequency, payment_method, is_offline, fund_id, project_id, settled_at, donated_at, funds(name, restriction), projects(title)").is("archived_at", null)),
+    fetchAll(() => db.from("expenses").select("id, expense_date, amount_cents, category_id, project_id, restriction, approval, expense_categories(name, functional_class), projects(title)").is("archived_at", null)),
     db.from("budgets").select("fiscal_year, category_id, amount_cents").is("project_id", null),
     db.from("expense_categories").select("id, name, functional_class, active, sort_order").order("sort_order").order("name"),
     db.from("funds").select("id, name").order("name"),

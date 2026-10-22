@@ -1,5 +1,6 @@
 import { SETTLED_STATUSES } from "@/lib/donations/status";
 import { projectProgress } from "@/lib/money";
+import { monthlyEquivalentCents } from "@/lib/donations/frequency";
 
 export interface DonationRec {
   id: string; donor_id: string; amount_cents: number; refunded_cents: number; status: string;
@@ -59,7 +60,8 @@ export function computeKpis(donations: DonationRec[], recurring: RecurringRec[],
     month: kpi(sum((k) => k.month === monthKey), sum((k) => k.month === ym(prevMonth))),
     year: kpi(sum((k) => k.year === t.y), sum((k) => k.year === t.y - 1)),
     activeRecurringDonors: new Set(active.map((r) => r.donor_id)).size,
-    monthlyRecurringCents: active.filter((r) => r.frequency === "monthly").reduce((s, r) => s + r.amount_cents, 0),
+    // Monthly, bi-weekly (26 a year) and irregular schedules, per month; yearly gifts have their own total.
+    monthlyRecurringCents: active.reduce((s, r) => s + monthlyEquivalentCents(r.amount_cents, r.frequency), 0),
     yearlyRecurringCents: active.filter((r) => r.frequency === "yearly").reduce((s, r) => s + r.amount_cents, 0),
     averageDonationCents: ytd.length ? Math.round(ytd.reduce((s, d) => s + netCents(d), 0) / ytd.length) : 0,
     newDonorsThisMonth: [...monthDonors].filter(isNew).length,
@@ -135,7 +137,11 @@ export function buildSeries(key: SeriesKey, input: SeriesInput): Table {
     case "one-time-vs-recurring": {
       const g = byMonth(scoped);
       const f = (m: string, freq: string) => dollars(net((g.get(m) ?? []).filter((d) => d.frequency === freq)));
-      return { kind: "bar", columns: ["Month", "One time ($)", "Monthly ($)", "Yearly ($)"], rows: months.map((m) => [m, f(m, "one_time"), f(m, "monthly"), f(m, "yearly")]) };
+      const other = (m: string) => dollars(net((g.get(m) ?? []).filter((d) => d.frequency === "biweekly" || d.frequency === "irregular")));
+      const hasOther = scoped.some((d) => d.frequency === "biweekly" || d.frequency === "irregular");
+      return hasOther
+        ? { kind: "bar", columns: ["Month", "One time ($)", "Monthly ($)", "Yearly ($)", "Other schedules ($)"], rows: months.map((m) => [m, f(m, "one_time"), f(m, "monthly"), f(m, "yearly"), other(m)]) }
+        : { kind: "bar", columns: ["Month", "One time ($)", "Monthly ($)", "Yearly ($)"], rows: months.map((m) => [m, f(m, "one_time"), f(m, "monthly"), f(m, "yearly")]) };
     }
     case "tiers": {
       const g = new Map<string, { n: number; c: number }>();

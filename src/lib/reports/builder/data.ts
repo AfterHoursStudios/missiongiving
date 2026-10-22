@@ -1,5 +1,6 @@
 import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { getOrgSettings } from "@/lib/settings";
 import { zoned } from "@/lib/admin/metrics";
 import { isPlaceholderEmail } from "@/lib/admin/dp-import";
@@ -8,7 +9,6 @@ import { twelveMonthsBefore, type Row } from "./engine";
 import { SOURCES, type FieldDef, type SourceKey } from "./fields";
 
 const one = <T,>(v: T | T[] | null | undefined) => (Array.isArray(v) ? v[0] : v) ?? null;
-const LIMIT = 200000;
 
 /**
  * Rows for a report-builder report. Callers MUST have passed requirePermission("reports.view"). Without donors.view,
@@ -21,9 +21,9 @@ export async function loadBuilderRows(source: SourceKey, canViewDonors: boolean)
   const today = ymd(new Date().toISOString())!;
 
   const [donorsRes, tagsRes] = await Promise.all([
-    db.from("donor_profiles").select("id, first_name, last_name, organization_name, email, phone, address_line1, address_line2, city, region, postal_code, country, status, created_at")
-      .is("deleted_at", null).is("merged_into", null).limit(LIMIT),
-    db.from("donor_tag_assignments").select("donor_id, donor_tags(name)").limit(LIMIT),
+    fetchAll(() => db.from("donor_profiles").select("id, first_name, last_name, organization_name, email, phone, address_line1, address_line2, city, region, postal_code, country, status, created_at")
+      .is("deleted_at", null).is("merged_into", null)),
+    fetchAll(() => db.from("donor_tag_assignments").select("donor_id, tag_id, donor_tags(name)"), { orderBy: ["donor_id", "tag_id"] }),
   ]);
   if (donorsRes.error) throw new Error(donorsRes.error.message);
   const tags = new Map<string, string[]>();
@@ -41,9 +41,9 @@ export async function loadBuilderRows(source: SourceKey, canViewDonors: boolean)
     });
   }
 
-  const giftsRes = await db.from("donations")
+  const giftsRes = await fetchAll(() => db.from("donations")
     .select("id, donor_id, amount_cents, refunded_cents, fee_cents, status, frequency, payment_method, is_offline, recurring_id, donor_note, settled_at, donated_at, funds(name, restriction), projects(title), receipts(receipt_number)")
-    .is("archived_at", null).limit(LIMIT);
+    .is("archived_at", null));
   if (giftsRes.error) throw new Error(giftsRes.error.message);
 
   let rows: Row[];
@@ -64,7 +64,7 @@ export async function loadBuilderRows(source: SourceKey, canViewDonors: boolean)
       });
     }
   } else {
-    const { data: rec } = await db.from("recurring_donations").select("donor_id, amount_cents, frequency").eq("status", "active").limit(LIMIT);
+    const { data: rec } = await fetchAll(() => db.from("recurring_donations").select("id, donor_id, amount_cents, frequency").eq("status", "active"));
     const recurring = new Map<string, number>();
     for (const r of rec ?? []) recurring.set(r.donor_id, (recurring.get(r.donor_id) ?? 0) + r.amount_cents);
     const settled = SETTLED_STATUSES as readonly string[];

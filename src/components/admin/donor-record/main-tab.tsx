@@ -209,19 +209,23 @@ export function MainTab({ donor, canEdit, canGift, canAudit, score, deletion, te
       </Section>
 
       {donor.dp_id && (
-        <Section title="DonorPerfect History" extra={<span className="text-sm text-ink-soft">giving before Mission Giving · not included in reports or totals above</span>}>
+        <Section title="DonorPerfect History" extra={<span className="text-sm text-ink-soft">{donor.dp_total_given_cents == null ? "gifts imported from DonorPerfect are on the Gifts tab" : "giving before Mission Giving · not included in reports or totals above"}</span>}>
           <FieldGrid>
             <FieldCol>
               <Row label="DonorPerfect ID"><ReadValue>{donor.dp_id}</ReadValue></Row>
               <Row label="DonorPerfect Score"><ReadValue>{donor.dp_score ?? ""}</ReadValue></Row>
             </FieldCol>
+            {donor.dp_total_given_cents != null && (
+              <FieldCol>
+                <Row label="Total Given"><ReadValue>{formatMoney(donor.dp_total_given_cents)}</ReadValue></Row>
+                <Row label="Number of Gifts"><ReadValue>{donor.dp_gift_count ?? 0}</ReadValue></Row>
+              </FieldCol>
+            )}
             <FieldCol>
-              <Row label="Total Given"><ReadValue>{formatMoney(donor.dp_total_given_cents ?? 0)}</ReadValue></Row>
-              <Row label="Number of Gifts"><ReadValue>{donor.dp_gift_count ?? 0}</ReadValue></Row>
-            </FieldCol>
-            <FieldCol>
-              <Row label="Last Gift Date"><ReadValue align="left">{donor.dp_last_gift_at ? date(`${donor.dp_last_gift_at}T12:00:00`) : ""}</ReadValue></Row>
-              <Row label="Last Gift Amount"><ReadValue>{donor.dp_last_gift_cents != null ? formatMoney(donor.dp_last_gift_cents) : ""}</ReadValue></Row>
+              {donor.dp_total_given_cents != null && <>
+                <Row label="Last Gift Date"><ReadValue align="left">{donor.dp_last_gift_at ? date(`${donor.dp_last_gift_at}T12:00:00`) : ""}</ReadValue></Row>
+                <Row label="Last Gift Amount"><ReadValue>{donor.dp_last_gift_cents != null ? formatMoney(donor.dp_last_gift_cents) : ""}</ReadValue></Row>
+              </>}
               <Row label="Imported"><ReadValue align="left">{date(donor.dp_imported_at)}</ReadValue></Row>
             </FieldCol>
           </FieldGrid>

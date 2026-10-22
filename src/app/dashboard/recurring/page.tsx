@@ -18,7 +18,7 @@ export default async function RecurringPage() {
   const { supabase, donor } = await getDonorContext();
   const settings = await getOrgSettings();
   const { data } = donor
-    ? await supabase.from("recurring_donations").select("id, amount_cents, frequency, status, next_charge_at, canceled_at, created_at, projects(title)")
+    ? await supabase.from("recurring_donations").select("id, amount_cents, frequency, status, next_charge_at, canceled_at, created_at, dp_pledge_id, projects(title)")
         .eq("donor_id", donor.id).order("created_at", { ascending: false })
     : { data: [] };
   const all = data ?? [];
@@ -48,9 +48,14 @@ export default async function RecurringPage() {
                 {r.status === "past_due" && <p className="mt-2 font-semibold text-danger">{STATUS_TEXT[r.status]}</p>}
                 {r.next_charge_at && r.status !== "incomplete" && <p className="mt-2">Next scheduled gift: <strong>{new Date(r.next_charge_at).toLocaleDateString("en-US", { timeZone: settings.timezone })}</strong></p>}
                 <div className="mt-2 border-t border-line pt-2">
-                  {settings.recurring_amount_change_enabled && ["active", "past_due"].includes(r.status) &&
-                    <ChangeAmountForm id={r.id} current={r.amount_cents} action={updateRecurringAmount} />}
-                  <CancelRecurringForm id={r.id} action={cancelRecurring} />
+                  {r.dp_pledge_id ? (
+                    // Brought over from DonorPerfect, which still processes it: changes go through the office.
+                    <p className="text-sm text-ink-soft">To change or stop this gift, contact us{settings.contact_email ? <> at <a className="text-teal-600 underline" href={`mailto:${settings.contact_email}`}>{settings.contact_email}</a></> : ""}.</p>
+                  ) : (<>
+                    {settings.recurring_amount_change_enabled && ["active", "past_due"].includes(r.status) &&
+                      <ChangeAmountForm id={r.id} current={r.amount_cents} action={updateRecurringAmount} />}
+                    <CancelRecurringForm id={r.id} action={cancelRecurring} />
+                  </>)}
                 </div>
               </li>
             ))}

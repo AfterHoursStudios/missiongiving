@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { findDuplicateGroups } from "@/lib/admin/duplicates";
 import { mergeDonors } from "@/lib/admin/donor-actions";
 import { MergePair } from "@/components/admin/merge-pair";
@@ -12,8 +13,9 @@ const REASON = { email: "Same email address", phone: "Same phone number", name_p
 
 export default async function DuplicatesPage() {
   await requirePermission("donors.edit");
-  const { data } = await createSupabaseAdminClient().from("donor_summary").select("id, first_name, last_name, email, phone, created_at, lifetime_cents, gift_count").limit(20000);
-  const { data: addr } = await createSupabaseAdminClient().from("donor_profiles").select("id, postal_code").is("deleted_at", null).not("postal_code", "is", null);
+  const db = createSupabaseAdminClient();
+  const { data } = await fetchAll(() => db.from("donor_summary").select("id, first_name, last_name, email, phone, created_at, lifetime_cents, gift_count"));
+  const { data: addr } = await fetchAll(() => db.from("donor_profiles").select("id, postal_code").is("deleted_at", null).not("postal_code", "is", null));
   const postal = new Map((addr ?? []).map((a) => [a.id, a.postal_code as string]));
   const groups = findDuplicateGroups((data ?? []).map((d) => ({ ...d, postal_code: postal.get(d.id) ?? null })));
 

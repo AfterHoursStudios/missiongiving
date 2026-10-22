@@ -41,9 +41,13 @@ for (let from = 0; ; from += 1000) {
 const byDp = new Map(existing.filter((e) => e.dp_id).map((e) => [e.dp_id!, e]));
 const byEmail = new Map(existing.map((e) => [e.normalized_email.toLowerCase(), e]));
 
+// Giving totals are written only when the file has them (a constituent summary export). A contact export without them,
+// used with import-donorperfect-gifts.mts, leaves them blank so the imported gifts aren't counted twice.
+const hasTotals = "totalGivenCents" in columns || "giftCount" in columns;
+const TAG_NO_EMAIL = "DP: Do Not Email", TAG_NO_MAIL = "DP: Do Not Send Mail";
 const history = (d: ImportDonor, now: string) => ({
-  dp_id: d.dpId, dp_score: d.score, dp_total_given_cents: d.totalGivenCents, dp_gift_count: d.giftCount,
-  dp_last_gift_at: d.lastGiftAt, dp_last_gift_cents: d.lastGiftCents, dp_imported_at: now,
+  dp_id: d.dpId, ...("score" in columns ? { dp_score: d.score } : {}), dp_imported_at: now,
+  ...(hasTotals ? { dp_total_given_cents: d.totalGivenCents, dp_gift_count: d.giftCount, dp_last_gift_at: d.lastGiftAt, dp_last_gift_cents: d.lastGiftCents } : {}),
 });
 const now = new Date().toISOString();
 const inserts: Record<string, unknown>[] = [];
@@ -67,8 +71,10 @@ for (const d of donors) {
   }
 }
 const noEmail = donors.filter((d) => !d.email).length;
+const doNotEmail = donors.filter((d) => d.doNotEmail), doNotMail = donors.filter((d) => d.doNotMail);
 console.log(`→ ${inserts.length} new donors, ${updates.length} existing donors updated, ${noEmail} without an email (placeholder address).`);
-console.log(`→ DonorPerfect giving history: $${(donors.reduce((s, d) => s + d.totalGivenCents, 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })} across ${donors.reduce((s, d) => s + d.giftCount, 0)} gifts (shown on donor records; not added to reports).`);
+if (hasTotals) console.log(`→ DonorPerfect giving history: $${(donors.reduce((s, d) => s + d.totalGivenCents, 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })} across ${donors.reduce((s, d) => s + d.giftCount, 0)} gifts (shown on donor records; not added to reports).`);
+console.log(`→ DonorPerfect contact preferences: ${doNotEmail.length} "Do Not Email" (opted out of news, project updates and statement emails; tagged "${TAG_NO_EMAIL}"), ${doNotMail.length} "Do Not Send Mail" (tagged "${TAG_NO_MAIL}").`);
 if (!apply) { console.log("\nPreview only. Re-run with --apply to import."); process.exit(0); }
 
 for (let i = 0; i < inserts.length; i += 200) {
@@ -84,5 +90,31 @@ for (const [n, u] of updates.entries()) {
   if (error) throw new Error(`Update failed for donor ${u.id}: ${error.message}`);
   if (n % 50 === 0) process.stdout.write(`  updated ${n + 1}/${updates.length}\r`);
 }
-await db.from("audit_logs").insert({ actor_id: null, action: "donor.create", entity_type: "import", details: { source: "donorperfect", inserted: inserts.length, updated: updates.length } });
+// DonorPerfect contact preferences. Only ever turns email OFF; nothing here sends a message.
+if (doNotEmail.length || doNotMail.length) {
+  const idByDp = new Map<string, string>();
+  const dpIds = [...new Set([...doNotEmail, ...doNotMail].map((d) => d.dpId))];
+  for (let i = 0; i < dpIds.length; i += 200) {
+    const { data, error } = await db.from("donor_profiles").select("id, dp_id").in("dp_id", dpIds.slice(i, i + 200)).is("deleted_at", null);
+    if (error) throw new Error(error.message);
+    for (const r of data ?? []) idByDp.set(r.dp_id, r.id);
+  }
+  const noEmailIds = doNotEmail.map((d) => idByDp.get(d.dpId)).filter((x): x is string => !!x);
+  for (let i = 0; i < noEmailIds.length; i += 200) {
+    const { error } = await db.from("communication_preferences").upsert(noEmailIds.slice(i, i + 200).map((donor_id) => ({ donor_id, marketing_email: false, project_updates: false, annual_statement_email: false, updated_at: now })), { onConflict: "donor_id" });
+    if (error) throw new Error(`Could not save email opt-outs: ${error.message}`);
+  }
+  for (const [tag, list] of [[TAG_NO_EMAIL, doNotEmail], [TAG_NO_MAIL, doNotMail]] as const) {
+    if (!list.length) continue;
+    const { data: t, error } = await db.from("donor_tags").upsert({ name: tag }, { onConflict: "name" }).select("id").single();
+    if (error || !t) throw new Error(`Could not create the tag ${tag}: ${error?.message}`);
+    const rows = list.map((d) => idByDp.get(d.dpId)).filter((x): x is string => !!x).map((donor_id) => ({ donor_id, tag_id: t.id }));
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error: ae } = await db.from("donor_tag_assignments").upsert(rows.slice(i, i + 200), { onConflict: "donor_id,tag_id", ignoreDuplicates: true });
+      if (ae) throw new Error(`Could not tag donors ${tag}: ${ae.message}`);
+    }
+  }
+  console.log(`  contact preferences: ${noEmailIds.length} opted out of email; tags added.`);
+}
+await db.from("audit_logs").insert({ actor_id: null, action: "donor.create", entity_type: "import", details: { source: "donorperfect", inserted: inserts.length, updated: updates.length, do_not_email: doNotEmail.length, do_not_mail: doNotMail.length } });
 console.log(`\nDone: ${inserts.length} added, ${updates.length} updated.`);

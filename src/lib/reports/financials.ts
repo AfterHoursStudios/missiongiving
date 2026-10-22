@@ -189,7 +189,7 @@ export function parseReportFilters(sp: Record<string, string | undefined>, fallb
   return {
     from, to, fundId: uuid(sp.fund), projectId: uuid(sp.project), categoryId: uuid(sp.category),
     donorId: canFilterDonor ? uuid(sp.donor) : undefined,
-    frequency: ["one_time", "monthly", "yearly"].includes(sp.frequency ?? "") ? sp.frequency : undefined,
+    frequency: ["one_time", "monthly", "yearly", "biweekly", "irregular"].includes(sp.frequency ?? "") ? sp.frequency : undefined,
     method: ["card", "us_bank_account", "offline"].includes(sp.method ?? "") ? sp.method : undefined,
     status: (SETTLED as readonly string[]).includes(sp.status ?? "") ? sp.status : undefined,
     restriction: sp.restriction === "restricted" || sp.restriction === "unrestricted" ? sp.restriction : undefined,

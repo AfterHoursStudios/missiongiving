@@ -5,6 +5,7 @@ import type { FeatureCollection, Geometry } from "geojson";
 import type { Topology, GeometryCollection } from "topojson-specification";
 import statesTopo from "us-atlas/states-albers-10m.json";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { getOrgSettings, getSetting } from "@/lib/settings";
 import { SETTLED_STATUSES } from "@/lib/donations/status";
 import { zoned } from "@/lib/admin/metrics";
@@ -33,9 +34,9 @@ export async function loadDashboard() {
   const db = createSupabaseAdminClient();
   const settings = await getOrgSettings();
   const [d, donors, fiscal, goal] = await Promise.all([
-    db.from("donations").select("donor_id, amount_cents, refunded_cents, settled_at, donated_at")
-      .in("status", SETTLED_STATUSES as string[]).is("archived_at", null).limit(200000),
-    db.from("donor_profiles").select("id, region").is("deleted_at", null).not("region", "is", null).limit(200000),
+    fetchAll(() => db.from("donations").select("id, donor_id, amount_cents, refunded_cents, settled_at, donated_at")
+      .in("status", SETTLED_STATUSES as string[]).is("archived_at", null)),
+    fetchAll(() => db.from("donor_profiles").select("id, region").is("deleted_at", null).not("region", "is", null)),
     getSetting("fiscal_year_start_month"),
     getSetting(GOAL_SETTING),
   ]);

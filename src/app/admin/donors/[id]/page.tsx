@@ -13,6 +13,7 @@ import { DonorHeader, RecordTabs, TabToolbar, type RecordTab } from "@/component
 import { MainTab } from "@/components/admin/donor-record/main-tab";
 import { GiftsTab, type GiftRow } from "@/components/admin/donor-record/gifts-tab";
 import { PledgesTab, type PledgeRow } from "@/components/admin/donor-record/pledges-tab";
+import { monthlyEquivalentCents } from "@/lib/donations/frequency";
 import { ContactsTab, buildContacts, type CampaignRow, type CommRow } from "@/components/admin/donor-record/contacts-tab";
 import { AccountsTab } from "@/components/admin/donor-record/accounts-tab";
 import { linkCls } from "@/components/admin/donor-record/ui";
@@ -59,7 +60,7 @@ export default async function DonorDetail({ params, searchParams }: {
 
   const [donations, recurring, assigned, comms, campaigns, scoreRow] = await Promise.all([
     db.from("donations").select("id, amount_cents, refunded_cents, status, stripe_payment_intent_id, frequency, payment_method, donated_at, recurring_id, is_offline, projects(title, kind), receipts(receipt_number, is_final, delivery_history)").eq("donor_id", id).order("donated_at", { ascending: false }),
-    db.from("recurring_donations").select("id, amount_cents, frequency, status, created_at, next_charge_at, canceled_at, cancel_reason, projects(title, kind)").eq("donor_id", id),
+    db.from("recurring_donations").select("id, amount_cents, frequency, status, created_at, next_charge_at, canceled_at, cancel_reason, dp_pledge_id, projects(title, kind)").eq("donor_id", id),
     db.from("donor_tag_assignments").select("donor_tags(id, name)").eq("donor_id", id),
     db.from("donor_communications").select("id, kind, channel, subject, detail, status, created_at, created_by").eq("donor_id", id).order("created_at", { ascending: false }).limit(1000),
     db.from("campaign_recipients").select("id, status, updated_at, communication_campaigns(subject, kind, sent_at)").eq("donor_id", id).limit(1000),
@@ -87,7 +88,7 @@ export default async function DonorDetail({ params, searchParams }: {
   const livePledges = pledges.filter((r) => ["active", "past_due"].includes(r.status));
   const isSponsor = [...(donations.data ?? []).map((g) => one<{ kind: string }>(g.projects)), ...(recurring.data ?? []).map((r) => one<{ kind: string }>(r.projects))].some((p) => p?.kind === "sponsorship");
   const profile = givingProfile(gifts);
-  const monthlyCents = livePledges.reduce((s, r) => s + (r.frequency === "yearly" ? Math.round(r.amount_cents / 12) : r.amount_cents), 0);
+  const monthlyCents = livePledges.reduce((s, r) => s + (r.frequency === "yearly" ? Math.round(r.amount_cents / 12) : monthlyEquivalentCents(r.amount_cents, r.frequency)), 0);
   const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   const tabs: RecordTab[] = [

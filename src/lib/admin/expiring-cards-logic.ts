@@ -1,7 +1,7 @@
 const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
-const FREQ_SUFFIX: Record<string, string> = { monthly: "/mo", yearly: "/yr" };
+const FREQ_SUFFIX: Record<string, string> = { monthly: "/mo", yearly: "/yr", biweekly: "/2 wks" };
 
 export interface ExpiringCardGift { amountCents: number; frequency: string; status: string }
 export interface ExpiringCardRow {

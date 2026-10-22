@@ -17,7 +17,10 @@ const STATUS = [
   { value: "processing", label: "Processing" }, { value: "pending", label: "Pending" }, { value: "failed", label: "Failed" },
   { value: "canceled", label: "Canceled" }, { value: "disputed", label: "Disputed" },
 ];
-const FREQUENCY = [{ value: "one_time", label: "One time" }, { value: "monthly", label: "Monthly" }, { value: "yearly", label: "Yearly" }];
+const FREQUENCY = [
+  { value: "one_time", label: "One time" }, { value: "monthly", label: "Monthly" }, { value: "yearly", label: "Yearly" },
+  { value: "biweekly", label: "Bi-weekly" }, { value: "irregular", label: "Irregular schedule" },
+];
 const METHOD = [{ value: "card", label: "Card" }, { value: "us_bank_account", label: "Bank (ACH)" }, { value: "offline", label: "Offline" }];
 const RESTRICTION = [{ value: "unrestricted", label: "Unrestricted" }, { value: "restricted", label: "Restricted" }];
 const DONOR_STATUS = [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }, { value: "lapsed", label: "Lapsed" }, { value: "do_not_contact", label: "Do not contact" }];
