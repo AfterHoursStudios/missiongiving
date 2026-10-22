@@ -8,10 +8,11 @@ export const donorQuerySchema = z.object({
   tag: z.string().uuid().optional(),
   recurring: z.enum(["yes", "no"]).optional(),
   min: z.coerce.number().min(0).max(10_000_000).optional(),
-  sort: z.enum(["name", "lifetime", "last_gift", "created", "score", "gifts"]).default("name"),
-  dir: z.enum(["asc", "desc"]).default("asc"),
+  // Default: highest donor score first. Without a direction, names sort A–Z and numbers and dates highest first.
+  sort: z.enum(["name", "lifetime", "last_gift", "created", "score", "gifts"]).default("score"),
+  dir: z.enum(["asc", "desc"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
-});
+}).transform((v) => ({ ...v, dir: v.dir ?? (v.sort === "name" ? "asc" as const : "desc" as const) }));
 export type DonorQuery = z.infer<typeof donorQuerySchema>;
 export const DONOR_PAGE_SIZE = 25;
 
