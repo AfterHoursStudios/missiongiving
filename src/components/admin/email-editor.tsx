@@ -30,7 +30,9 @@ export function EmailEditor({ name, initialHtml, labelledBy }: { name: string; i
       StarterKit.configure({ heading: { levels: [2, 3] }, code: false, codeBlock: false, horizontalRule: false, link: { openOnClick: false, protocols: ["mailto"], defaultProtocol: "https" } }),
       TextStyle, FontSize, FontFamily,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Image.configure({ resize: { enabled: true, alwaysPreserveAspectRatio: true, minWidth: 40 } }),
+      // Inline: a picture sits in a paragraph, so the align buttons move it left/center/right (<p style="text-align:…"><img></p>,
+      // which every email app honours). Pictures saved earlier as their own block are wrapped in a paragraph on load.
+      Image.configure({ inline: true, resize: { enabled: true, alwaysPreserveAspectRatio: true, minWidth: 40 } }),
       CharacterCount,
     ],
     content: initialHtml,

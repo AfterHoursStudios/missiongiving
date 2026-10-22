@@ -56,7 +56,7 @@ export function TemplateBuilder({ action, values, fromAddress, defaultReplyTo, s
           </div></div>
         <div><span id="tb-body-label" className="block font-semibold">Message <span aria-hidden="true" className="text-danger">*</span></span>
           <div className="mt-1.5"><EmailEditor name="body" initialHtml={values.bodyHtml} labelledBy="tb-body-label" /></div>
-          <p className="mt-1 text-sm text-ink-soft">Merge fields like {"{{donor_first_name}}"} are filled in for each donor when the email is sent. Drag a picture&apos;s corner to resize it.</p></div>
+          <p className="mt-1 text-sm text-ink-soft">Merge fields like {"{{donor_first_name}}"} are filled in for each donor when the email is sent. Click a picture, then use the align buttons to move it left, center or right; drag its corner to resize it.</p></div>
       </div>
 
       <aside className="h-fit space-y-4 rounded-xl bg-paper-2 p-4 lg:sticky lg:top-4">
