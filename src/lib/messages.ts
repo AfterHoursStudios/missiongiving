@@ -1,10 +1,8 @@
 import sanitizeHtml from "sanitize-html";
 
-export const TEMPLATE_VARIABLES = [
-  "donor_first_name", "donor_full_name", "donation_amount", "donation_date", "donation_frequency",
-  "tier_name", "project_name", "receipt_number", "organization_name", "dashboard_link", "receipt_link",
-] as const;
-export type TemplateVariable = (typeof TEMPLATE_VARIABLES)[number];
+import { TEMPLATE_VARIABLES, type TemplateVariable } from "./template-variables";
+
+export { TEMPLATE_VARIABLES, type TemplateVariable };
 export type TemplateVars = Partial<Record<TemplateVariable, string>>;
 
 const ALLOWED = new Set<string>(TEMPLATE_VARIABLES);
@@ -20,12 +18,31 @@ export function fillTemplate(text: string, vars: TemplateVars, mode: "html" | "t
   });
 }
 
+const ALIGN = { "text-align": [/^(left|right|center|justify)$/] };
+
+/**
+ * Email markup from the template builder: text formatting, alignment, text sizes, links and pictures. Pictures must be
+ * https URLs (ours are in the email-images bucket); scripts, event handlers, other styles and data: URLs are removed.
+ */
 export function sanitizeEmailHtml(html: string) {
   return sanitizeHtml(html, {
-    allowedTags: ["p", "br", "strong", "em", "b", "i", "u", "ul", "ol", "li", "h2", "h3", "a", "blockquote"],
-    allowedAttributes: { a: ["href", "title", "rel", "target"] },
+    allowedTags: ["p", "br", "strong", "em", "b", "i", "u", "s", "ul", "ol", "li", "h2", "h3", "a", "blockquote", "span", "img"],
+    allowedAttributes: {
+      a: ["href", "title", "rel", "target"], img: ["src", "alt", "width", "height", "style"], span: ["style"],
+      p: ["style"], h2: ["style"], h3: ["style"], li: ["style"],
+    },
+    allowedStyles: {
+      p: ALIGN, h2: ALIGN, h3: ALIGN, li: ALIGN,
+      span: { "font-size": [/^\d{1,2}px$/] },
+      img: { "max-width": [/^100%$/], height: [/^auto$/] },
+    },
     allowedSchemes: ["https", "mailto"],
-    transformTags: { a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer" }) },
+    allowedSchemesByTag: { img: ["https"] },
+    transformTags: {
+      a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer" }),
+      // Scales down on narrow screens instead of overflowing the email.
+      img: (tagName, attribs) => ({ tagName, attribs: { ...attribs, style: "max-width:100%;height:auto" } }),
+    },
   });
 }
 

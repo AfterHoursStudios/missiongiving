@@ -44,3 +44,25 @@ export function storagePathFromPublicUrl(url: string, supabaseUrl: string, bucke
   const path = decodeURIComponent(url.slice(prefix.length));
   return path && !path.includes("..") ? path : null;
 }
+
+export type ProcessedEmailImage = { ok: true; data: Buffer; width: number; height: number; type: "png" | "jpg" } | { ok: false; error: string };
+
+/**
+ * Like processImage, for pictures in emails: re-encoded as JPEG, or PNG when the picture has transparency (a signature,
+ * a logo), since WebP doesn't show in Outlook for Windows. Capped at 1200 px wide, larger than any email is shown.
+ */
+export async function processEmailImage(bytes: Uint8Array): Promise<ProcessedEmailImage> {
+  if (bytes.length === 0) return { ok: false, error: "The image file is empty." };
+  if (bytes.length > MAX_IMAGE_BYTES) return { ok: false, error: "The image must be 8 MB or smaller." };
+  if (!sniffImage(bytes)) return { ok: false, error: "Use a JPEG, PNG or WebP image." };
+  try {
+    const img = sharp(bytes, { failOn: "error", limitInputPixels: 60_000_000 }).rotate().resize({ width: 1200, withoutEnlargement: true });
+    const { hasAlpha } = await sharp(bytes, { limitInputPixels: 60_000_000 }).metadata();
+    const { data, info } = hasAlpha
+      ? await img.png({ compressionLevel: 9 }).toBuffer({ resolveWithObject: true })
+      : await img.flatten({ background: "#ffffff" }).jpeg({ quality: 85, mozjpeg: true }).toBuffer({ resolveWithObject: true });
+    return { ok: true, data, width: info.width, height: info.height, type: hasAlpha ? "png" : "jpg" };
+  } catch {
+    return { ok: false, error: "That file could not be read as an image. Try a different picture." };
+  }
+}

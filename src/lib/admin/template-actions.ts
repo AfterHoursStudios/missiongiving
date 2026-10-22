@@ -11,25 +11,40 @@ import { logCommunication } from "@/lib/comms/log";
 import { AUTOMATIC_EVENTS, eventLabel, type AutomaticEmailEvent } from "@/lib/comms/automatic-emails";
 import { getOrgSettings } from "@/lib/settings";
 import { publicEnv } from "@/lib/env";
-import { fillTemplate, sanitizeEmailHtml, type TemplateVars } from "@/lib/messages";
+import { fillTemplate, htmlToText, sanitizeEmailHtml, type TemplateVars } from "@/lib/messages";
 import { formatRichText } from "./project-schema";
 import { SAMPLE_VARS, findUnknownVariables, planVersions, templateKeySlug } from "./template-logic";
 import type { AdminState } from "./donor-actions";
 
-const saveSchema = z.object({
-  key: z.string().regex(/^[a-z_]+$/), subject: z.string().trim().min(1, "Enter a subject").max(200),
-  body: z.string().trim().min(1, "Write the message").max(50_000),
-});
+const KEY = /^[a-z0-9_]+$/; // custom keys can end in a number ("thank_you_2")
+const replyTo = z.string().trim().max(200).optional().transform((v) => v || null).pipe(z.string().email("Enter a valid reply-to email").nullable());
+const fields = {
+  name: z.string().trim().min(1, "Enter a template name").max(80),
+  reply_to: replyTo,
+  subject: z.string().trim().min(1, "Enter a subject").max(200),
+  body: z.string().trim().min(1, "Write the message").max(200_000),
+};
+const saveSchema = z.object({ key: z.string().regex(KEY), ...fields });
+const MIGRATION_HINT = " (Has database migration 0023 been applied?)";
+
+/**
+ * The builder sends formatted HTML (older plain-text bodies still work: formatRichText turns them into paragraphs).
+ * Returns the sanitized HTML and the plain-text alternative, or an error.
+ */
+function prepareBody(subject: string, body: string): { html: string; text: string } | { error: string } {
+  const html = sanitizeEmailHtml(formatRichText(body));
+  const text = htmlToText(html);
+  if (!text && !/<img\s/i.test(html)) return { error: "Write the message" };
+  const bad = findUnknownVariables(subject, html, text);
+  if (bad.length) return { error: `Unknown merge field${bad.length > 1 ? "s" : ""}: ${bad.map((b) => `{{${b}}}`).join(", ")}` };
+  return { html, text };
+}
 
 async function writeVersion(templateId: string, version: number, t: { subject: string; body_html: string; body_text: string }, userId: string) {
   await createSupabaseAdminClient().from("message_template_versions").insert({ template_id: templateId, version, ...t, saved_by: userId });
 }
 
-const createTemplateSchema = z.object({
-  name: z.string().trim().min(1, "Enter a name").max(80),
-  subject: z.string().trim().min(1, "Enter a subject").max(200),
-  body: z.string().trim().min(1, "Write the message").max(50_000),
-});
+const createTemplateSchema = z.object(fields);
 
 /**
  * A custom template for one-off or manual sends (e.g. from a donor's page) — not wired to any automatic send
@@ -39,10 +54,8 @@ export async function createTemplate(_: AdminState, form: FormData): Promise<Adm
   const { user } = await requirePermission("comms.send");
   const p = createTemplateSchema.safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0].message };
-  const html = sanitizeEmailHtml(formatRichText(p.data.body));
-  const text = p.data.body;
-  const bad = findUnknownVariables(p.data.subject, html, text);
-  if (bad.length) return { error: `Unknown variable${bad.length > 1 ? "s" : ""}: ${bad.map((b) => `{{${b}}}`).join(", ")}` };
+  const body = prepareBody(p.data.subject, p.data.body);
+  if ("error" in body) return body;
 
   const db = createSupabaseAdminClient();
   const base = templateKeySlug(p.data.name);
@@ -51,23 +64,22 @@ export async function createTemplate(_: AdminState, form: FormData): Promise<Adm
   for (let n = 2; await taken(key); n++) key = `${base}_${n}`;
 
   const { data, error } = await db.from("message_templates")
-    .insert({ key, name: p.data.name, subject: p.data.subject, body_html: html, body_text: text, updated_by: user.id })
+    .insert({ key, name: p.data.name, subject: p.data.subject, body_html: body.html, body_text: body.text, updated_by: user.id, ...(p.data.reply_to ? { reply_to: p.data.reply_to } : {}) })
     .select("id").single();
-  if (error || !data) return { error: "Could not create the template." };
+  if (error || !data) return { error: `Could not create the template.${p.data.reply_to ? MIGRATION_HINT : ""}` };
   await audit(user.id, "settings.change", "message_template", key, { created: true });
   revalidatePath("/admin/messages");
   redirect(`/admin/messages/${key}`);
 }
 
-/** Staff write plain text only; the HTML version sent to donors is generated from it (see formatRichText). */
+/** Saves the builder's name, reply-to, subject and formatted message; the subject and message are versioned. */
 export async function saveTemplate(_: AdminState, form: FormData): Promise<AdminState> {
   const { user } = await requirePermission("comms.send");
   const p = saveSchema.safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0].message };
-  const html = sanitizeEmailHtml(formatRichText(p.data.body));
-  const text = p.data.body;
-  const bad = findUnknownVariables(p.data.subject, html, text);
-  if (bad.length) return { error: `Unknown variable${bad.length > 1 ? "s" : ""}: ${bad.map((b) => `{{${b}}}`).join(", ")}` };
+  const body = prepareBody(p.data.subject, p.data.body);
+  if ("error" in body) return body;
+  const { html, text } = body;
 
   const db = createSupabaseAdminClient();
   const { data: cur } = await db.from("message_templates").select("id, subject, body_html, body_text").eq("key", p.data.key).maybeSingle();
@@ -76,17 +88,18 @@ export async function saveTemplate(_: AdminState, form: FormData): Promise<Admin
   const plan = planVersions(last?.[0]?.version ?? 0);
   if (plan.snapshotOriginal) await writeVersion(cur.id, 1, cur, user.id);
   const next = { subject: p.data.subject, body_html: html, body_text: text };
-  const { error } = await db.from("message_templates").update({ ...next, updated_by: user.id }).eq("id", cur.id);
-  if (error) return { error: "Could not save the template." };
+  const { error } = await db.from("message_templates").update({ ...next, name: p.data.name, reply_to: p.data.reply_to, updated_by: user.id }).eq("id", cur.id);
+  if (error) return { error: `Could not save the template.${MIGRATION_HINT}` };
   await writeVersion(cur.id, plan.newVersion, next, user.id);
   await audit(user.id, "settings.change", "message_template", p.data.key, { version: plan.newVersion });
   revalidatePath(`/admin/messages/${p.data.key}`);
+  revalidatePath("/admin/messages");
   return { ok: true, message: `Saved as version ${plan.newVersion}.` };
 }
 
 export async function restoreVersion(_: AdminState, form: FormData): Promise<AdminState> {
   const { user } = await requirePermission("comms.send");
-  const p = z.object({ key: z.string().regex(/^[a-z_]+$/), versionId: z.string().uuid() }).safeParse(Object.fromEntries(form));
+  const p = z.object({ key: z.string().regex(KEY), versionId: z.string().uuid() }).safeParse(Object.fromEntries(form));
   if (!p.success) return { error: "Version not found." };
   const db = createSupabaseAdminClient();
   const { data: tpl } = await db.from("message_templates").select("id").eq("key", p.data.key).maybeSingle();
@@ -105,20 +118,21 @@ export async function restoreVersion(_: AdminState, form: FormData): Promise<Adm
 /** Sends the SAVED template, filled with sample data, to the signed-in staff member only. */
 export async function sendTestEmail(_: AdminState, form: FormData): Promise<AdminState> {
   const { user } = await requirePermission("comms.send");
-  const key = z.string().regex(/^[a-z_]+$/).safeParse(form.get("key"));
+  const key = z.string().regex(KEY).safeParse(form.get("key"));
   if (!key.success || !user.email) return { error: "Cannot send a test email." };
-  const { data: t } = await createSupabaseAdminClient().from("message_templates").select("subject, body_html, body_text").eq("key", key.data).maybeSingle();
+  // "*" so this still works before migration 0023 adds reply_to.
+  const { data: t } = await createSupabaseAdminClient().from("message_templates").select("*").eq("key", key.data).maybeSingle();
   if (!t) return { error: "Template not found." };
   const settings = await getOrgSettings();
   const r = await sendEmail({
     to: user.email, subject: `[TEST] ${fillTemplate(t.subject, SAMPLE_VARS, "text")}`,
     html: sanitizeEmailHtml(fillTemplate(t.body_html, SAMPLE_VARS, "html")), text: fillTemplate(t.body_text, SAMPLE_VARS, "text"),
-    fromName: settings.email_sender_name, replyTo: settings.email_reply_to || undefined,
+    fromName: settings.email_sender_name, replyTo: t.reply_to || settings.email_reply_to || undefined,
   });
   return r.skipped ? { error: "Email is not configured (RESEND_API_KEY / EMAIL_FROM_ADDRESS), so nothing was sent." } : { ok: true, message: `Test email sent to ${user.email}.` };
 }
 
-const sendToDonorSchema = z.object({ donorId: z.string().uuid(), templateKey: z.string().regex(/^[a-z_]+$/) });
+const sendToDonorSchema = z.object({ donorId: z.string().uuid(), templateKey: z.string().regex(KEY) });
 
 /**
  * One-off send of a saved template to a single donor, picked by staff from the donor's page. Hard-blocked for
@@ -134,7 +148,7 @@ export async function sendDonorMessage(_: AdminState, form: FormData): Promise<A
   const db = createSupabaseAdminClient();
   const [{ data: donor }, { data: template }, { data: prefs }] = await Promise.all([
     db.from("donor_profiles").select("id, email, first_name, last_name, status").eq("id", p.data.donorId).is("deleted_at", null).maybeSingle(),
-    db.from("message_templates").select("subject, body_html, body_text").eq("key", p.data.templateKey).maybeSingle(),
+    db.from("message_templates").select("*").eq("key", p.data.templateKey).maybeSingle(),
     db.from("communication_preferences").select("suppressed").eq("donor_id", p.data.donorId).maybeSingle(),
   ]);
   if (!donor) return { error: "Donor not found." };
@@ -150,7 +164,7 @@ export async function sendDonorMessage(_: AdminState, form: FormData): Promise<A
   const r = await sendEmail({
     to: donor.email, subject: fillTemplate(template.subject, vars, "text"),
     html: sanitizeEmailHtml(fillTemplate(template.body_html, vars, "html")), text: fillTemplate(template.body_text, vars, "text"),
-    fromName: settings.email_sender_name, replyTo: settings.email_reply_to || undefined, tags: [{ name: "kind", value: "manual" }],
+    fromName: settings.email_sender_name, replyTo: template.reply_to || settings.email_reply_to || undefined, tags: [{ name: "kind", value: "manual" }],
   });
   if (r.skipped) return { error: "Email is not configured (RESEND_API_KEY / EMAIL_FROM_ADDRESS), so nothing was sent." };
   await audit(user.id, "message.send", "donor", donor.id, { template_key: p.data.templateKey });
@@ -164,7 +178,7 @@ export async function sendDonorMessage(_: AdminState, form: FormData): Promise<A
  */
 export async function setTemplateUsage(_: AdminState, form: FormData): Promise<AdminState> {
   const { user } = await requirePermission("comms.send");
-  const key = z.string().regex(/^[a-z_]+$/).safeParse(form.get("key"));
+  const key = z.string().regex(KEY).safeParse(form.get("key"));
   const events = z.array(z.enum(AUTOMATIC_EVENTS as [AutomaticEmailEvent, ...AutomaticEmailEvent[]])).safeParse(form.getAll("event"));
   if (!key.success || !events.success) return { error: "Invalid request." };
   const db = createSupabaseAdminClient();

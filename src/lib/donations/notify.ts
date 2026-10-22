@@ -24,17 +24,21 @@ const LOG_KIND: Record<NotifyKind, CommunicationKind> = {
 
 const FREQ_LABEL: Record<string, string> = { one_time: "one-time", monthly: "monthly", yearly: "yearly" };
 
+type SendableTemplate = { subject: string; body_html: string; body_text: string; reply_to?: string | null };
+
 /**
  * The template an automatic email uses: the one assigned to it under Messages → "Used for" (message_assignments),
  * otherwise the template whose key matches the event (original seeded behaviour). None means no email is sent.
  */
 async function loadTemplateFor(event: string) {
   const db = createSupabaseAdminClient();
-  const assigned = await db.from("message_assignments").select("message_templates(subject, body_html, body_text)").eq("event", event).maybeSingle();
+  // "*" so reply_to comes along once migration 0023 adds it, without breaking before.
+  const assigned = await db.from("message_assignments").select("message_templates(*)").eq("event", event).maybeSingle();
   const t = assigned.error ? null : assigned.data?.message_templates;
   const viaAssignment = Array.isArray(t) ? t[0] : t;
-  if (viaAssignment) return { data: viaAssignment as { subject: string; body_html: string; body_text: string } };
-  return db.from("message_templates").select("subject, body_html, body_text").eq("key", event).maybeSingle();
+  if (viaAssignment) return { data: viaAssignment as SendableTemplate };
+  const { data } = await db.from("message_templates").select("*").eq("key", event).maybeSingle();
+  return { data: data as SendableTemplate | null };
 }
 
 /** Transactional email tied to a donation. Independent of marketing consent by design. */
@@ -57,7 +61,7 @@ export async function notifyDonor(kind: NotifyKind, ref: { donationId?: string; 
 
   // A thank-you message staff picked when entering this gift by hand replaces the automatic success email.
   const pickedKey = donationId && (kind === "donation_success" || kind === "ach_confirmed") ? await pickedThankYou(donationId) : null;
-  const picked = pickedKey ? (await db.from("message_templates").select("subject, body_html, body_text").eq("key", pickedKey).maybeSingle()).data : null;
+  const picked = pickedKey ? (await db.from("message_templates").select("*").eq("key", pickedKey).maybeSingle()).data as SendableTemplate | null : null;
   const templateKey = picked ? pickedKey! : TEMPLATE_KEY[kind](src.frequency);
 
   const [{ data: donor }, { data: tier }, { data: project }, { data: template }] = await Promise.all([
@@ -84,7 +88,7 @@ export async function notifyDonor(kind: NotifyKind, ref: { donationId?: string; 
   // A message staff picked on purpose is sent as written, without the tier's override.
   const override = !picked && (kind === "donation_success" || kind === "ach_confirmed") ? tier?.email_message : null;
   const msg = renderDonationMessage(template, override, vars);
-  const sent = await sendEmail({ to: donor.email, ...msg, fromName: settings.email_sender_name, replyTo: settings.email_reply_to || undefined, tags: [{ name: "kind", value: kind }] });
+  const sent = await sendEmail({ to: donor.email, ...msg, fromName: settings.email_sender_name, replyTo: template.reply_to || settings.email_reply_to || undefined, tags: [{ name: "kind", value: kind }] });
   await logCommunication({
     donorId: src.donor_id, kind: LOG_KIND[kind], subject: msg.subject, donationId: donationId ?? null,
     templateKey, status: sent.skipped ? "skipped" : "sent",
