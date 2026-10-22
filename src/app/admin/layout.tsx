@@ -38,7 +38,11 @@ const NAV: Group[] = [
     { href: "/admin/forms", label: "Donation forms", perm: "projects.manage" },
   ] },
   { key: "expenses", label: "Expenses", icon: "receipt", href: "/admin/expenses", perm: "expenses.record" },
-  { key: "reports", label: "Reports", icon: "reports", href: "/admin/reports", perm: "reports.view" },
+  { key: "reports", label: "Reports", icon: "reports", children: [
+    { href: "/admin/reports/dashboard", label: "Dashboard", perm: "reports.view" },
+    { href: "/admin/reports/builder", label: "Report builder", perm: "reports.view" },
+    { href: "/admin/reports", label: "Financial reports", perm: "reports.view" },
+  ] },
   { key: "utilities", label: "Utilities", icon: "utilities", children: [
     { href: "/admin/staff", label: "Staff", perm: "staff.manage" },
     { href: "/admin/tiers", label: "Donation tiers", perm: "tiers.manage" },
