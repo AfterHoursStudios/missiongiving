@@ -5,6 +5,8 @@ import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { startAdminCharge } from "@/lib/admin/virtual-terminal";
 import { PayForm } from "@/components/donate/donate-flow";
+import { ThankYouPicker } from "@/components/admin/thank-you-picker";
+import type { ThankYouChoice } from "@/lib/admin/thank-you-templates";
 
 const inputCls = "mt-1.5 min-h-11 w-full rounded-md border border-ink-soft bg-white px-3";
 
@@ -15,12 +17,14 @@ export interface TerminalSavedMethod { id: string; type: "card" | "us_bank_accou
 const NEW = "new";
 const methodName = (m: TerminalSavedMethod) => (m.type === "link" ? m.label : `${m.type === "card" ? m.label : `Bank account (${m.label})`} •••• ${m.last4}`);
 
-export function VirtualTerminalForm({ projects, publishableKey, donor, savedMethods = [], oneTimeOnly = false }: {
+export function VirtualTerminalForm({ projects, publishableKey, donor, savedMethods = [], oneTimeOnly = false, thankYouTemplates = [] }: {
   projects: { id: string; title: string }[]; publishableKey: string | null; donor?: TerminalDonor; savedMethods?: TerminalSavedMethod[];
+  /** Message templates offered under "Add a thank-you message". */
+  thankYouTemplates?: ThankYouChoice[];
   /** Gifts → One-time gift: the frequency is fixed to one time and the Frequency choice is hidden. */
   oneTimeOnly?: boolean;
 }) {
-  const [d, setD] = useState({ email: "", firstName: "", lastName: "", phone: "", amount: "", frequency: "one_time" as "one_time" | "monthly" | "yearly", projectId: "", note: "" });
+  const [d, setD] = useState({ email: "", firstName: "", lastName: "", phone: "", amount: "", frequency: "one_time" as "one_time" | "monthly" | "yearly", projectId: "", note: "", thankYouTemplate: "" });
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [session, setSession] = useState<{ clientSecret: string; donationId: string } | null>(null);
@@ -58,7 +62,7 @@ export function VirtualTerminalForm({ projects, publishableKey, donor, savedMeth
     if (!d.amount.trim() || Number.isNaN(Number(d.amount))) return setError("Enter a valid amount.");
     startTransition(async () => {
       // From a donor's page the donor is already known: send their id, not the (hidden, empty) contact fields.
-      const gift = { amount: d.amount, frequency: d.frequency, note: d.note, projectId: d.projectId || undefined };
+      const gift = { amount: d.amount, frequency: d.frequency, note: d.note, projectId: d.projectId || undefined, thankYouTemplate: d.thankYouTemplate || undefined };
       const res = await startAdminCharge(donor
         ? { ...gift, donorId: donor.id, paymentMethodId: chosen?.id }
         : { ...gift, email: d.email, firstName: d.firstName, lastName: d.lastName, phone: d.phone });
@@ -120,6 +124,7 @@ export function VirtualTerminalForm({ projects, publishableKey, donor, savedMeth
         </fieldset>
       )}
       <div><label className="block font-semibold">Note (optional)</label><textarea rows={2} className={inputCls} value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} /></div>
+      <ThankYouPicker templates={thankYouTemplates} onChange={(key) => setD((cur) => ({ ...cur, thankYouTemplate: key }))} />
       <button type="button" onClick={submit} disabled={pending} className="min-h-12 rounded-md bg-brand-700 px-6 font-semibold text-white disabled:opacity-60">
         {pending ? (chosen ? "Charging…" : "Preparing…") : chosen ? `Charge${d.amount && !Number.isNaN(Number(d.amount)) ? ` $${Number(d.amount).toFixed(2)}` : ""} to ${methodName(chosen)}` : "Continue to payment"}
       </button>

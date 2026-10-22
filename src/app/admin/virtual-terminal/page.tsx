@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { publicEnv } from "@/lib/env";
 import { isPlaceholderEmail } from "@/lib/admin/dp-import";
 import { listPaymentMethods } from "@/lib/admin/payment-on-file";
+import { loadThankYouChoices } from "@/lib/admin/thank-you-templates";
 import { VirtualTerminalForm, type TerminalDonor } from "@/components/admin/virtual-terminal-form";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,10 @@ export default async function VirtualTerminalPage({ searchParams }: { searchPara
     : undefined;
 
   // Saved cards/bank accounts on the donor's Stripe customer, so staff can charge one without re-entering it.
-  const saved = donorRow.data ? await listPaymentMethods(donorRow.data.stripe_customer_id) : { methods: [] };
+  const [saved, thankYouTemplates] = await Promise.all([
+    donorRow.data ? listPaymentMethods(donorRow.data.stripe_customer_id) : Promise.resolve({ methods: [] }),
+    loadThankYouChoices(donor),
+  ]);
 
   // Gifts → One-time gift opens this page with ?frequency=one_time: the gift is single, with no monthly/yearly choice.
   const oneTimeOnly = sp.frequency === "one_time";
@@ -35,7 +39,7 @@ export default async function VirtualTerminalPage({ searchParams }: { searchPara
         For checks, cash or wire, use <a className="underline" href="/admin/offline-gift">Record offline gift</a> instead.
       </p>
       {!perms.has("expenses.record") && <p role="alert" className="mt-4 rounded-md bg-warning-bg p-3 text-warning">Your role can view finance data but cannot record entries.</p>}
-      <div className="mt-6"><VirtualTerminalForm projects={projects ?? []} publishableKey={publicEnv.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null} donor={donor} savedMethods={saved.methods} oneTimeOnly={oneTimeOnly} /></div>
+      <div className="mt-6"><VirtualTerminalForm projects={projects ?? []} publishableKey={publicEnv.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null} donor={donor} savedMethods={saved.methods} oneTimeOnly={oneTimeOnly} thankYouTemplates={thankYouTemplates} /></div>
     </>
   );
 }

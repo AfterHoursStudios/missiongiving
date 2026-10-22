@@ -10,6 +10,7 @@ import { audit } from "@/lib/audit";
 import { isPlaceholderEmail } from "@/lib/admin/dp-import";
 import { reconcileDonation } from "@/lib/stripe/reconcile-donation";
 import type { CheckoutResult } from "@/lib/donations/actions";
+import { thankYouTemplateField } from "@/lib/admin/finance-logic";
 
 
 const schema = z.object({
@@ -25,6 +26,8 @@ const schema = z.object({
   note: z.string().trim().max(1000).optional(),
   // A card/bank account already saved on the donor's Stripe customer: charged directly, no card entry screen.
   paymentMethodId: z.string().regex(/^pm_[A-Za-z0-9]+$/).optional(),
+  // A message template picked as this gift's thank-you; sent instead of the automatic one once the payment succeeds.
+  thankYouTemplate: thankYouTemplateField,
 }).refine((v) => v.donorId || (v.email && v.firstName?.trim() && v.lastName?.trim()), {
   message: "Enter the donor's name and email.",
 });
@@ -108,17 +111,22 @@ export async function startAdminCharge(raw: unknown): Promise<AdminChargeResult>
     }
   }
 
+  if (input.thankYouTemplate && !(await db.from("message_templates").select("key").eq("key", input.thankYouTemplate).maybeSingle()).data) {
+    return { ok: false, error: "That thank-you message no longer exists. Choose another one." };
+  }
+
   const idempotencyKey = crypto.randomUUID();
   const base = {
     donor_id: donor.id, fund_id: fundId, project_id: projectId, tier_id: null,
     amount_cents: amountCents, currency: settings.currency, frequency: input.frequency,
     payment_method: (savedPm?.type === "us_bank_account" ? "us_bank_account" : "card") as "card" | "us_bank_account", status: "pending" as const, anonymous: false,
     donor_note: input.note ? `${input.note} (entered by staff)` : "Entered by staff (phone/mail gift)", idempotency_key: idempotencyKey,
+    ...(input.thankYouTemplate ? { thank_you_template_key: input.thankYouTemplate } : {}),
   };
   const donationIns = await db.from("donations").insert(base).select("id").single();
-  if (donationIns.error) return { ok: false, error: "Could not start this gift. Please try again." };
+  if (donationIns.error) return { ok: false, error: input.thankYouTemplate ? "Could not start this gift. (Has database migration 0022 been applied?)" : "Could not start this gift. Please try again." };
   const donationId = donationIns.data.id;
-  await audit(user.id, "financial.adjustment", "donation", donationId, { op: "admin_charge_start", amount_cents: amountCents, frequency: input.frequency, saved_payment_method: !!savedPm });
+  await audit(user.id, "financial.adjustment", "donation", donationId, { op: "admin_charge_start", amount_cents: amountCents, frequency: input.frequency, saved_payment_method: !!savedPm, thank_you_template: input.thankYouTemplate ?? null });
 
   if (savedPm) {
     const r = await chargeSaved({ stripe, db, savedPm, customerId, donorId: donor.id, donationId, idempotencyKey, amountCents, fundId, projectId, frequency: input.frequency, currency: settings.currency, staffId: user.id });

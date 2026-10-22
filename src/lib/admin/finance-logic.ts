@@ -7,6 +7,9 @@ const money = (label: string) => z.string().trim().transform((v, ctx) => {
 
 export const OFFLINE_METHODS = ["check", "cash", "wire", "other"] as const;
 
+/** A message template key picked as a gift's thank-you (custom keys may end in a number, e.g. "thank_you_2"). Blank = none. */
+export const thankYouTemplateField = z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().regex(/^[a-z0-9_]+$/).max(80).optional());
+
 export const offlineGiftSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter the donor's email"),
   first_name: z.string().trim().max(80).optional().transform((v) => v || null),
@@ -17,6 +20,7 @@ export const offlineGiftSchema = z.object({
   method: z.enum(OFFLINE_METHODS),
   reference: z.string().trim().max(60).optional().transform((v) => v || null),
   send_receipt: z.preprocess((v) => v === "on", z.boolean()),
+  thank_you_template: thankYouTemplateField,
 }).superRefine((v, ctx) => {
   // received date can't be in the future (allow one day of time-zone slack)
   if (Date.parse(v.date) > Date.now() + 86_400_000) ctx.addIssue({ code: "custom", path: ["date"], message: "The received date cannot be in the future" });

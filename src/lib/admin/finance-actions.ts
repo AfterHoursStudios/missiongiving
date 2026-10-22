@@ -40,18 +40,25 @@ export async function recordOfflineGift(_: AdminState, form: FormData): Promise<
     fundId = proj.fund_id;
   } else fundId = (await db.from("funds").select("id").eq("key", "general").maybeSingle()).data?.id ?? null;
 
+  if (v.thank_you_template && !(await db.from("message_templates").select("key").eq("key", v.thank_you_template).maybeSingle()).data) {
+    return { error: "That thank-you message no longer exists. Choose another one." };
+  }
+
   const when = `${v.date}T12:00:00Z`;
   const { data: gift, error } = await db.from("donations").insert({
     donor_id: donor.id, fund_id: fundId, project_id: v.project_id, amount_cents: v.amount, currency: settings.currency, frequency: "one_time",
     payment_method: "offline", status: "succeeded", is_offline: true, donor_note: [v.method, v.reference].filter(Boolean).join(" · ") || null,
     settled_at: when, donated_at: when,
+    ...(v.thank_you_template ? { thank_you_template_key: v.thank_you_template } : {}),
   }).select("id").single();
-  if (error || !gift) return { error: "Could not record the gift." };
+  if (error || !gift) return { error: v.thank_you_template ? "Could not record the gift. (Has database migration 0022 been applied?)" : "Could not record the gift." };
   await db.from("receipts").insert({ donation_id: gift.id, is_final: true });
-  await audit(user.id, "financial.adjustment", "donation", gift.id, { kind: "offline_gift", amount_cents: v.amount, method: v.method, project_id: v.project_id });
-  if (v.send_receipt) notifyDonor("donation_success", { donationId: gift.id }).catch(() => {});
+  await audit(user.id, "financial.adjustment", "donation", gift.id, { kind: "offline_gift", amount_cents: v.amount, method: v.method, project_id: v.project_id, thank_you_template: v.thank_you_template ?? null });
+  // Picking a thank-you message means "send it", even if the receipt box was left unticked (the email is the receipt and thank-you in one).
+  const email = v.send_receipt || !!v.thank_you_template;
+  if (email) notifyDonor("donation_success", { donationId: gift.id }).catch(() => {});
   revalidatePath("/admin");
-  return { ok: true, message: `Offline gift recorded${v.send_receipt ? " and receipt emailed" : ""}.` };
+  return { ok: true, message: `Offline gift recorded${email ? (v.thank_you_template ? " and thank-you message emailed" : " and receipt emailed") : ""}.` };
 }
 
 /**

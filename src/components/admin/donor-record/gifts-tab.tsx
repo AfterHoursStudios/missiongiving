@@ -35,7 +35,7 @@ export function GiftsTab({ donorId, gifts, page, showFailed, canEdit, canRefund,
           <summary className={`${pillCls} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}><PlusCircle aria-hidden="true" size={18} />Add gift</summary>
           <ul className="absolute left-0 top-full z-20 mt-1 min-w-56 rounded-md border border-line bg-white py-1 shadow-md">
             <li><Link className="block min-h-11 px-4 py-2.5 hover:bg-paper-2" href={`/admin/virtual-terminal?donor=${donorId}`}>Card or bank (phone/mail)</Link></li>
-            <li><Link className="block min-h-11 px-4 py-2.5 hover:bg-paper-2" href="/admin/offline-gift">Check or cash (offline)</Link></li>
+            <li><Link className="block min-h-11 px-4 py-2.5 hover:bg-paper-2" href={`/admin/offline-gift?donor=${donorId}`}>Check or cash (offline)</Link></li>
           </ul>
         </details>
       )}

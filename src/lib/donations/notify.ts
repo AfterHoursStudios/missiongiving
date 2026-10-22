@@ -55,11 +55,16 @@ export async function notifyDonor(kind: NotifyKind, ref: { donationId?: string; 
   const src = donation ?? recurring;
   if (!src) return;
 
+  // A thank-you message staff picked when entering this gift by hand replaces the automatic success email.
+  const pickedKey = donationId && (kind === "donation_success" || kind === "ach_confirmed") ? await pickedThankYou(donationId) : null;
+  const picked = pickedKey ? (await db.from("message_templates").select("subject, body_html, body_text").eq("key", pickedKey).maybeSingle()).data : null;
+  const templateKey = picked ? pickedKey! : TEMPLATE_KEY[kind](src.frequency);
+
   const [{ data: donor }, { data: tier }, { data: project }, { data: template }] = await Promise.all([
     db.from("donor_profiles").select("email, first_name, last_name").eq("id", src.donor_id).single(),
     src.tier_id ? db.from("donation_tiers").select("public_title, email_message").eq("id", src.tier_id).maybeSingle() : Promise.resolve({ data: null }),
     src.project_id ? db.from("projects").select("title, kind").eq("id", src.project_id).maybeSingle() : Promise.resolve({ data: null }),
-    loadTemplateFor(TEMPLATE_KEY[kind](src.frequency)),
+    picked ? Promise.resolve({ data: picked }) : loadTemplateFor(templateKey),
   ]);
   if (!donor || !template) return;
 
@@ -76,11 +81,18 @@ export async function notifyDonor(kind: NotifyKind, ref: { donationId?: string; 
     dashboard_link: `${base}/dashboard`, receipt_link: donationId ? `${base}/receipts/${donationId}/pdf` : `${base}/dashboard`,
   };
   // Tier override applies to success emails only, so failures/refunds keep their required wording.
-  const override = kind === "donation_success" || kind === "ach_confirmed" ? tier?.email_message : null;
+  // A message staff picked on purpose is sent as written, without the tier's override.
+  const override = !picked && (kind === "donation_success" || kind === "ach_confirmed") ? tier?.email_message : null;
   const msg = renderDonationMessage(template, override, vars);
   const sent = await sendEmail({ to: donor.email, ...msg, fromName: settings.email_sender_name, replyTo: settings.email_reply_to || undefined, tags: [{ name: "kind", value: kind }] });
   await logCommunication({
     donorId: src.donor_id, kind: LOG_KIND[kind], subject: msg.subject, donationId: donationId ?? null,
-    templateKey: TEMPLATE_KEY[kind](src.frequency), status: sent.skipped ? "skipped" : "sent",
+    templateKey, status: sent.skipped ? "skipped" : "sent",
   });
+}
+
+/** The gift's staff-picked thank-you template key, if any. A separate query so a database without migration 0022 still sends the automatic email. */
+async function pickedThankYou(donationId: string): Promise<string | null> {
+  const { data, error } = await createSupabaseAdminClient().from("donations").select("thank_you_template_key").eq("id", donationId).maybeSingle();
+  return error ? null : ((data as { thank_you_template_key?: string | null } | null)?.thank_you_template_key ?? null);
 }
