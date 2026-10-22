@@ -78,3 +78,20 @@ export function ConfirmAction({ action, fields, label, confirmText }: {
     </span>
   );
 }
+
+/**
+ * Contact Preferences: "Do not contact" and the other choices exclude each other. Ticking Do not contact unticks the
+ * rest; ticking any other choice unticks Do not contact. (The save action applies the same rule.)
+ */
+export function ExclusiveContactPrefs({ children }: { children: React.ReactNode }) {
+  return (
+    <div onChange={(e) => {
+      const box = e.target as HTMLInputElement;
+      if (box.type !== "checkbox" || !box.checked) return;
+      const boxes = [...(e.currentTarget as HTMLDivElement).querySelectorAll<HTMLInputElement>("input[type=checkbox]")];
+      for (const b of boxes) if (b !== box && (box.name === "do_not_contact" || b.name === "do_not_contact")) b.checked = false;
+    }}>
+      {children}
+    </div>
+  );
+}

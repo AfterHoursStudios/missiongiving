@@ -107,6 +107,10 @@ export async function updateDonor(_: AdminState, form: FormData): Promise<AdminS
   const next = { ...v, phone: v.phone || null, organization_name: v.organization_name || null, address_line1: v.address_line1 || null, address_line2: v.address_line2 || null, city: v.city || null, region: v.region || null, postal_code: v.postal_code || null, country: v.country ? v.country.toUpperCase() : null };
   const { error } = await db.from("donor_profiles").update({ ...next, ...emailUpdate }).eq("id", id);
   if (error) return { error: "Could not save changes." };
+  // Status Do not contact means no contact choices, the same as ticking it under Contact Preferences.
+  if (next.status === "do_not_contact" && before.status !== "do_not_contact") {
+    await db.from("communication_preferences").upsert({ donor_id: id, marketing_email: false, project_updates: false, annual_statement_email: false, updated_at: new Date().toISOString() }, { onConflict: "donor_id" });
+  }
   const changed = [...Object.keys(next).filter((k) => (before as Record<string, unknown>)[k] !== (next as Record<string, unknown>)[k]), ...(emailUpdate ? ["email"] : [])];
   await audit(user.id, "donor.update", "donor", id, { changed_fields: changed }); // field names only, not values
   revalidatePath(`/admin/donors/${id}`);
@@ -241,12 +245,15 @@ export async function updateContactPreferences(_: AdminState, form: FormData): P
   const on = (k: string) => form.get(k) === "on";
   const db = createSupabaseAdminClient();
   const [{ data: donor }, { data: before }] = await Promise.all([
-    db.from("donor_profiles").select("id, email, normalized_email").eq("id", id.data).is("deleted_at", null).maybeSingle(),
+    db.from("donor_profiles").select("id, email, normalized_email, status").eq("id", id.data).is("deleted_at", null).maybeSingle(),
     db.from("communication_preferences").select("marketing_email, project_updates, annual_statement_email, suppressed").eq("donor_id", id.data).maybeSingle(),
   ]);
   if (!donor) return { error: "Donor not found." };
   const email = String(donor.normalized_email ?? donor.email).toLowerCase();
-  const suppress = on("suppressed");
+  // "Do not contact" excludes every other choice: when it's ticked, the others are saved as off.
+  const dnc = on("do_not_contact");
+  const choice = (k: string) => !dnc && on(k);
+  const suppress = choice("suppressed");
 
   let kept: string | null = null;
   if (suppress) {
@@ -258,17 +265,24 @@ export async function updateContactPreferences(_: AdminState, form: FormData): P
   }
 
   const next = {
-    marketing_email: on("marketing_email"), project_updates: on("project_updates"), annual_statement_email: on("annual_statement_email"),
+    marketing_email: choice("marketing_email"), project_updates: choice("project_updates"), annual_statement_email: choice("annual_statement_email"),
     suppressed: suppress || !!kept, suppressed_reason: suppress ? "manual" : kept ? kept : null,
   };
   const { error } = await db.from("communication_preferences").upsert({ donor_id: donor.id, ...next, updated_at: new Date().toISOString() });
   if (error) return { error: "Could not save the preferences." };
-  const changed = (["marketing_email", "project_updates", "annual_statement_email", "suppressed"] as const)
+  const changed: string[] = (["marketing_email", "project_updates", "annual_statement_email", "suppressed"] as const)
     .filter((k) => (before as Record<string, unknown> | null)?.[k] !== next[k]);
+  // Do not contact is the donor's Status: ticking it sets it; unticking it (or choosing any other option) clears it.
+  const wasDnc = donor.status === "do_not_contact";
+  if (dnc !== wasDnc) {
+    const { error: se } = await db.from("donor_profiles").update({ status: dnc ? "do_not_contact" : "active" }).eq("id", donor.id);
+    if (se) return { error: "Could not save the preferences." };
+    changed.push("status");
+  }
   await audit(user.id, "donor.update", "donor", donor.id, { field: "contact_preferences", changed_fields: changed });
   revalidatePath(`/admin/donors/${donor.id}`);
   if (kept) {
     return { ok: true, message: `Preferences saved. Email stays blocked: this donor ${kept === "complaint" ? "marked an email as spam" : "unsubscribed"}, which staff can't override.` };
   }
-  return { ok: true, message: "Contact preferences saved." };
+  return { ok: true, message: dnc ? "Saved: Do not contact. All other contact choices are off." : "Contact preferences saved." };
 }

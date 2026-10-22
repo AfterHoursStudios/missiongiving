@@ -5,7 +5,7 @@ import { SimpleForm, TextInput } from "@/components/donor/forms";
 import { formatMoney } from "@/lib/money";
 import type { GivingProfile } from "@/lib/admin/giving-profile";
 import { isPlaceholderEmail } from "@/lib/admin/dp-import";
-import { DonorMainForm, InlineAction } from "./client";
+import { DonorMainForm, ExclusiveContactPrefs, InlineAction } from "./client";
 import { SendEmailButton } from "@/components/admin/send-email-dialog";
 import { FieldCol, FieldGrid, ReadValue, Row, Section, inputCls, linkCls } from "./ui";
 
@@ -44,6 +44,7 @@ export function MainTab({ donor, canEdit, canGift, canAudit, score, deletion, te
     </>
   );
 
+  const dnc = donor.status === "do_not_contact";
   return (
     <>
       <DonorMainForm action={updateDonor} formId="donor-main-form" canEdit={canEdit} toolbar={toolbar}>
@@ -129,22 +130,25 @@ export function MainTab({ donor, canEdit, canGift, canAudit, score, deletion, te
       </Section>
 
       <Section title="Contact Preferences">
+        {/* dnc: the donor's Status is Do not contact, which overrides the other choices on screen. */}
         {canEdit ? (
           <SimpleForm action={updateContactPreferences} submit="Save preferences">
             <input type="hidden" name="id" value={id} />
-            <FieldGrid>
-              <FieldCol>
-                <PrefCheck name="marketing_email" label="News emails" on={!!prefs?.marketing_email} />
-                <PrefCheck name="project_updates" label="Project updates" on={!!prefs?.project_updates} />
-              </FieldCol>
-              <FieldCol>
-                <PrefCheck name="annual_statement_email" label="Annual statement email" on={prefs?.annual_statement_email ?? true} />
-                <PrefCheck name="suppressed" label="Email suppressed" on={!!prefs?.suppressed} hint="blocks all campaign email" />
-              </FieldCol>
-              <FieldCol>
-                <Check label="Do not contact" on={donor.status === "do_not_contact"} hint="set with Status above" />
-              </FieldCol>
-            </FieldGrid>
+            <ExclusiveContactPrefs>
+              <FieldGrid>
+                <FieldCol>
+                  <PrefCheck name="marketing_email" label="News emails" on={!dnc && !!prefs?.marketing_email} />
+                  <PrefCheck name="project_updates" label="Project updates" on={!dnc && !!prefs?.project_updates} />
+                </FieldCol>
+                <FieldCol>
+                  <PrefCheck name="annual_statement_email" label="Annual statement email" on={!dnc && (prefs?.annual_statement_email ?? true)} />
+                  <PrefCheck name="suppressed" label="Email suppressed" on={!dnc && !!prefs?.suppressed} hint="blocks all campaign email" />
+                </FieldCol>
+                <FieldCol>
+                  <PrefCheck name="do_not_contact" label="Do not contact" on={dnc} hint="no emails or messages" />
+                </FieldCol>
+              </FieldGrid>
+            </ExclusiveContactPrefs>
           </SimpleForm>
         ) : (
           <FieldGrid>
@@ -157,11 +161,11 @@ export function MainTab({ donor, canEdit, canGift, canAudit, score, deletion, te
               <Check label="Email suppressed" on={!!prefs?.suppressed} hint="after a bounce or spam complaint" />
             </FieldCol>
             <FieldCol>
-              <Check label="Do not contact" on={donor.status === "do_not_contact"} hint="set with Status above" />
+              <Check label="Do not contact" on={dnc} />
             </FieldCol>
           </FieldGrid>
         )}
-        <p className="mt-3 text-sm text-ink-soft">Donors can also change these from their own account. Receipts are always sent regardless of these choices. Unticking &ldquo;Email suppressed&rdquo; clears a bounce or a staff block, but never a donor&apos;s own unsubscribe or spam complaint.</p>
+        <p className="mt-3 text-sm text-ink-soft">Donors can also change these from their own account. &ldquo;Do not contact&rdquo; turns every other choice off (and sets Status to Do not contact); choosing any other option turns it off. Receipts are always sent regardless of these choices. Unticking &ldquo;Email suppressed&rdquo; clears a bounce or a staff block, but never a donor&apos;s own unsubscribe or spam complaint.</p>
       </Section>
 
       {score && (
