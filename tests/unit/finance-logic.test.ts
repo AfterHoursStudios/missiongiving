@@ -5,7 +5,7 @@ import { classifyAttention, type ReconDonation, type ReconEvent, type ReconRecur
 describe("offlineGiftSchema", () => {
   const ok = { email: " Donor@Example.com ", amount: "250", date: "2026-01-15", method: "check" };
   it("normalizes and converts", () => {
-    expect(offlineGiftSchema.parse(ok)).toMatchObject({ email: "donor@example.com", amount: 25000, project_id: null, send_receipt: false });
+    expect(offlineGiftSchema.parse(ok)).toMatchObject({ email: "donor@example.com", amount: 25000, project_id: null });
   });
   it("rejects bad amounts, future dates and unknown methods", () => {
     expect(offlineGiftSchema.safeParse({ ...ok, amount: "0" }).success).toBe(false);

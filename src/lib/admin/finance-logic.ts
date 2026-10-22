@@ -19,7 +19,6 @@ export const offlineGiftSchema = z.object({
   project_id: z.string().trim().optional().transform((v) => v || null).pipe(z.string().uuid().nullable()),
   method: z.enum(OFFLINE_METHODS),
   reference: z.string().trim().max(60).optional().transform((v) => v || null),
-  send_receipt: z.preprocess((v) => v === "on", z.boolean()),
   thank_you_template: thankYouTemplateField,
 }).superRefine((v, ctx) => {
   // received date can't be in the future (allow one day of time-zone slack)

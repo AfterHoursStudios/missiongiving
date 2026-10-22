@@ -54,11 +54,10 @@ export async function recordOfflineGift(_: AdminState, form: FormData): Promise<
   if (error || !gift) return { error: v.thank_you_template ? "Could not record the gift. (Has database migration 0022 been applied?)" : "Could not record the gift." };
   await db.from("receipts").insert({ donation_id: gift.id, is_final: true });
   await audit(user.id, "financial.adjustment", "donation", gift.id, { kind: "offline_gift", amount_cents: v.amount, method: v.method, project_id: v.project_id, thank_you_template: v.thank_you_template ?? null });
-  // Picking a thank-you message means "send it", even if the receipt box was left unticked (the email is the receipt and thank-you in one).
-  const email = v.send_receipt || !!v.thank_you_template;
-  if (email) notifyDonor("donation_success", { donationId: gift.id }).catch(() => {});
+  // The donor is emailed only when staff picked a thank-you message (it carries the receipt too).
+  if (v.thank_you_template) notifyDonor("donation_success", { donationId: gift.id }).catch(() => {});
   revalidatePath("/admin");
-  return { ok: true, message: `Offline gift recorded${email ? (v.thank_you_template ? " and thank-you message emailed" : " and receipt emailed") : ""}.` };
+  return { ok: true, message: `Offline gift recorded${v.thank_you_template ? " and thank-you message emailed" : ""}.` };
 }
 
 /**

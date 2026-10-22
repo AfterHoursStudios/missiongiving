@@ -12,7 +12,11 @@ const PREVIEW_STYLE = "<style>body{font-family:system-ui,sans-serif;font-size:15
  * preview of the chosen one. The pick replaces the gift's automatic thank-you email. With `name` it also writes a hidden
  * input for a plain form; `onChange` reports the pick to a form that keeps its own state.
  */
-export function ThankYouPicker({ templates, name, onChange }: { templates: ThankYouChoice[]; name?: string; onChange?: (key: string) => void }) {
+export function ThankYouPicker({ templates, name, onChange, noneHint = "Optional. Without one, the automatic thank-you email is used." }: {
+  templates: ThankYouChoice[]; name?: string; onChange?: (key: string) => void;
+  /** The note shown when no message is picked: what happens then. */
+  noneHint?: string;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   const [chosen, setChosen] = useState("");
   const [draft, setDraft] = useState("");
@@ -37,7 +41,7 @@ export function ThankYouPicker({ templates, name, onChange }: { templates: Thank
         </button>
       )}
       <p className="mt-1 text-sm text-ink-soft">
-        {picked ? "Emailed to the donor, with their receipt, instead of the automatic thank-you once the gift is recorded." : "Optional. Without one, the automatic thank-you email is used."}
+        {picked ? "Emailed to the donor, with their receipt, instead of the automatic thank-you once the gift is recorded." : noneHint}
       </p>
 
       <dialog ref={ref} aria-labelledby="thank-you-title" onClick={(e) => { if (e.target === ref.current) close(); }}

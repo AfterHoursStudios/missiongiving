@@ -2,7 +2,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { recordOfflineGift } from "@/lib/admin/finance-actions";
 import { OFFLINE_METHODS } from "@/lib/admin/finance-logic";
-import { CheckInput, SimpleForm, TextInput } from "@/components/donor/forms";
+import { SimpleForm, TextInput } from "@/components/donor/forms";
 import { isPlaceholderEmail } from "@/lib/admin/dp-import";
 import { loadThankYouChoices } from "@/lib/admin/thank-you-templates";
 import { ThankYouPicker } from "@/components/admin/thank-you-picker";
@@ -38,8 +38,7 @@ export default async function OfflineGiftPage({ searchParams }: { searchParams: 
           <div><label htmlFor="method" className="block font-semibold">Received as</label><select id="method" name="method" className={sel}>{OFFLINE_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
           <TextInput label="Check or reference number" name="reference" />
         </div>
-        <CheckInput label="Email the donor a receipt" name="send_receipt" />
-        <ThankYouPicker templates={thankYouTemplates} name="thank_you_template" />
+        <ThankYouPicker templates={thankYouTemplates} name="thank_you_template" noneHint="Optional. Without one, no email is sent to the donor." />
       </SimpleForm></div>
     </>
   );
