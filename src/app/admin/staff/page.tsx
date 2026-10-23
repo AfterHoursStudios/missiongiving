@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { setStaffActive } from "@/lib/admin/staff-actions";
+import { resendStaffInvite, setStaffActive } from "@/lib/admin/staff-actions";
+import { DeleteStaffButton } from "@/components/admin/delete-staff-button";
 import { InviteStaffButton } from "@/components/admin/invite-staff-dialog";
 import { ChangeRoleButton } from "@/components/admin/change-role-dialog";
 import { SimpleForm } from "@/components/donor/forms";
@@ -26,6 +27,9 @@ export default async function StaffPage() {
     db.from("staff_role_assignments").select("user_id, role_id"),
     db.from("profiles").select("id, email"),
   ]);
+  // Who has signed in at least once: anyone who hasn't is still "Invited" and can be sent a new link.
+  const { data: users } = await db.auth.admin.listUsers({ perPage: 1000 });
+  const signedIn = new Set((users?.users ?? []).filter((u) => u.last_sign_in_at).map((u) => u.id));
   const email = new Map((profiles ?? []).map((p) => [p.id, p.email]));
   const roleName = new Map((roles ?? []).map((r) => [r.id, r.name]));
 
@@ -49,7 +53,7 @@ export default async function StaffPage() {
             <col className="w-[20%]" />{/* Name */}
             <col className="w-[18%]" />{/* Role */}
             <col className="w-[25%]" />{/* Email */}
-            <col className="w-[19rem]" />{/* Change role / Deactivate (fixed) */}
+            <col className="w-[27rem]" />{/* Change role / Resend invite / Deactivate / Delete (fixed) */}
           </colgroup>
           <thead><tr className="text-sm">
             <th scope="col" className={th}>Status</th>
@@ -62,16 +66,20 @@ export default async function StaffPage() {
             const mine = (assigns ?? []).filter((a) => a.user_id === s.user_id);
             return (
               <tr key={s.user_id} className="border-b border-line">
-                <td className={td}><StatusDot status={s.active ? "active" : "inactive"} label={s.active ? "Active" : "Deactivated"} /></td>
+                <td className={td}><StatusDot status={!s.active ? "inactive" : signedIn.has(s.user_id) ? "active" : "pending"} label={!s.active ? "Deactivated" : signedIn.has(s.user_id) ? "Active" : "Invited"} /></td>
                 <td className={td + " font-semibold"}>{s.display_name}</td>
                 <td className={td}>{mine.length ? mine.map((a) => roleName.get(a.role_id)).join(", ") : <span className="text-ink-soft">No role</span>}</td>
                 <td className={td + " break-all text-sm text-ink-soft"}>{email.get(s.user_id)}</td>
                 <td className={`${td} ${ACTIONS_BUFFER}`}>
-                  <div className={`flex flex-nowrap items-start ${BUTTONS_GAP}`}>
+                  <div className={`flex flex-wrap items-start ${BUTTONS_GAP}`}>
                     <ChangeRoleButton userId={s.user_id} name={s.display_name} roles={(roles ?? []).map((r) => ({ id: r.id, name: r.name }))} current={mine.map((a) => a.role_id)} />
+                    {s.active && !signedIn.has(s.user_id) && (
+                      <SimpleForm action={resendStaffInvite} submit="Resend invite"><input type="hidden" name="userId" value={s.user_id} /></SimpleForm>
+                    )}
                     <SimpleForm action={setStaffActive} submit={s.active ? "Deactivate" : "Activate"} tone={s.active ? "danger" : "primary"}>
                       <input type="hidden" name="userId" value={s.user_id} /><input type="hidden" name="active" value={s.active ? "false" : "true"} />
                     </SimpleForm>
+                    <DeleteStaffButton userId={s.user_id} name={s.display_name} />
                   </div>
                 </td>
               </tr>

@@ -106,3 +106,16 @@ export async function signOutAction() {
   await supabase.auth.signOut();
   redirect("/");
 }
+
+/** Set password (after a staff invitation link signs the person in): same strength rule as Change password. */
+export async function setOwnPassword(_: FormState, form: FormData): Promise<FormState> {
+  const pw = z.string().min(12).max(128).regex(/[a-z]/).regex(/[A-Z]/).regex(/\d/).safeParse(form.get("password"));
+  if (!pw.success) return { error: "Use at least 12 characters with upper case, lower case and a number." };
+  if (form.get("confirm") !== pw.data) return { error: "The two passwords don't match." };
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return { error: "Your link has expired. Ask for a new invitation." };
+  const { error } = await supabase.auth.updateUser({ password: pw.data });
+  if (error) return { error: "We couldn't save that password. Try a different one." };
+  redirect("/admin");
+}
