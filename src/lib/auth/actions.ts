@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { publicEnv } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
 import { auditStaffLogin } from "./login-audit";
+import { requireUser } from "./session";
 
 export type FormState = { error?: string; message?: string } | undefined;
 
@@ -112,9 +113,8 @@ export async function setOwnPassword(_: FormState, form: FormData): Promise<Form
   const pw = z.string().min(12).max(128).regex(/[a-z]/).regex(/[A-Z]/).regex(/\d/).safeParse(form.get("password"));
   if (!pw.success) return { error: "Use at least 12 characters with upper case, lower case and a number." };
   if (form.get("confirm") !== pw.data) return { error: "The two passwords don't match." };
+  await requireUser(); // a signed-in person (the invitation link signs them in); otherwise to Sign in
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return { error: "Your link has expired. Ask for a new invitation." };
   const { error } = await supabase.auth.updateUser({ password: pw.data });
   if (error) return { error: "We couldn't save that password. Try a different one." };
   redirect("/admin");
