@@ -9,7 +9,7 @@ export const metadata = { title: "Campaigns" };
 export default async function CampaignsPage() {
   await requirePermission("comms.send");
   const { data } = await createSupabaseAdminClient().from("communication_campaigns")
-    .select("id, subject, kind, status, scheduled_for, sent_at, recipient_count, created_at").order("created_at", { ascending: false }).limit(100);
+    .select("id, subject, kind, status, scheduled_for, sent_at, recipient_count, created_at").is("design", null).order("created_at", { ascending: false }).limit(100); // newsletters are listed under Newsletters
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">

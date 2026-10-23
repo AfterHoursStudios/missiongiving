@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -24,6 +24,8 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   const db = createSupabaseAdminClient();
   const { data: c } = await db.from("communication_campaigns").select("*").eq("id", id).maybeSingle();
   if (!c) notFound();
+  // A newsletter draft is edited in the newsletter builder; this page still shows a sent newsletter's delivery figures.
+  if (c.design && c.status === "draft") redirect(`/admin/newsletters/${c.id}`);
   const settings = await getOrgSettings();
   const [{ data: projects }, { data: tags }, { data: who }, { data: forms }] = await Promise.all([
     db.from("projects").select("id, title").neq("status", "archived").order("title"),

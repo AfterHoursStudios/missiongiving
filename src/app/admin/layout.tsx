@@ -35,6 +35,7 @@ const NAV: Group[] = [
   ] },
   { key: "mailings", label: "Mailings/Forms", icon: "mail", children: [
     { href: "/admin/messages", label: "Messages", perm: "comms.send" },
+    { href: "/admin/newsletters", label: "Newsletters", perm: "comms.send" },
     { href: "/admin/forms", label: "Donation forms", perm: "projects.manage" },
   ] },
   { key: "expenses", label: "Expenses", icon: "receipt", href: "/admin/expenses", perm: "expenses.record" },

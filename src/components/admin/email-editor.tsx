@@ -23,7 +23,11 @@ const sel = "min-h-10 rounded-md border border-line bg-white px-2 text-sm";
  * The message box of the template builder: a formatted-text editor (bold, italic, underline, font, text size, paragraph style,
  * alignment, lists, links, pictures and merge fields). Its HTML goes into a hidden input `name`, sanitized again on save.
  */
-export function EmailEditor({ name, initialHtml, labelledBy }: { name: string; initialHtml: string; labelledBy: string }) {
+export function EmailEditor({ name, initialHtml, labelledBy, onChange, minHeight = "min-h-80" }: {
+  name?: string; initialHtml: string; labelledBy: string;
+  /** For a form that keeps its own state (the newsletter builder) instead of a hidden input. */
+  onChange?: (html: string) => void; minHeight?: string;
+}) {
   const [html, setHtml] = useState(initialHtml);
   const editor = useEditor({
     immediatelyRender: false, // server-rendered page: create the editor in the browser only
@@ -40,15 +44,15 @@ export function EmailEditor({ name, initialHtml, labelledBy }: { name: string; i
     editorProps: {
       attributes: {
         "aria-labelledby": labelledBy, "aria-multiline": "true", role: "textbox",
-        class: "email-body min-h-80 max-h-[32rem] overflow-y-auto px-4 py-3 focus:outline-none",
+        class: `email-body ${minHeight} max-h-[32rem] overflow-y-auto px-4 py-3 focus:outline-none`,
       },
     },
-    onUpdate: ({ editor: e }) => setHtml(e.getHTML()),
+    onUpdate: ({ editor: e }) => { const h = e.getHTML(); setHtml(h); onChange?.(h); },
   });
 
   return (
     <div className="rounded-md border border-ink-soft/60 bg-white focus-within:border-teal-800">
-      <input type="hidden" name={name} value={html} />
+      {name && <input type="hidden" name={name} value={html} />}
       {editor ? <Toolbar editor={editor} /> : <div className="h-12 border-b border-line" />}
       <EditorContent editor={editor} />
       {editor && <Counts editor={editor} />}

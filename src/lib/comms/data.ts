@@ -2,6 +2,7 @@ import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import type { DonorFacts } from "./audience";
+import { isPlaceholderEmail } from "@/lib/admin/dp-import";
 
 const SETTLED = ["succeeded", "partially_refunded", "refunded"];
 
@@ -34,7 +35,7 @@ export async function loadAudienceData(): Promise<{ donors: DonorFacts[]; suppre
   const donors: DonorFacts[] = (summary.data ?? []).map((d) => {
     const p = pref.get(d.id);
     return {
-      id: d.id, email: d.email ?? "", first_name: d.first_name, last_name: d.last_name, region: region.get(d.id) ?? null, status: d.status,
+      id: d.id, email: isPlaceholderEmail(d.email) ? "" : d.email ?? "", first_name: d.first_name, last_name: d.last_name, region: region.get(d.id) ?? null, status: d.status,
       // No preference row means the donor never opted in: default to NOT contactable.
       marketing_email: p?.marketing_email ?? false, project_updates: p?.project_updates ?? false, suppressed: p?.suppressed ?? false,
       lifetime_cents: Number(d.lifetime_cents), last_gift_at: d.last_gift_at,

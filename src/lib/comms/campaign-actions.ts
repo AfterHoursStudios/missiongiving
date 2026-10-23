@@ -111,7 +111,7 @@ export async function scheduleCampaign(_: AdminState, form: FormData): Promise<A
 
   await audit(user.id, "campaign.send", "campaign", c.id, { op: p.data.mode === "now" ? "send_now" : "schedule", scheduled_for: when.toISOString(), recipients: preview.count, kind: c.kind, subject: c.subject, audience: c.audience });
   if (p.data.mode === "now") await runDueCampaigns({ maxBatches: 1 }).catch(() => undefined); // remaining batches continue via the cron
-  revalidatePath(`/admin/campaigns/${c.id}`); revalidatePath("/admin/campaigns");
+  revalidatePath(`/admin/campaigns/${c.id}`); revalidatePath("/admin/campaigns"); revalidatePath(`/admin/newsletters/${c.id}`); revalidatePath("/admin/newsletters");
   return { ok: true, message: p.data.mode === "now" ? `Sending started to ${preview.count} recipients. Large lists continue in throttled batches.` : `Scheduled for ${when.toLocaleString("en-US", { timeZone: settings.timezone })} to about ${preview.count} recipients. Consent is re-checked when it sends.` };
 }
 
@@ -123,7 +123,7 @@ export async function unscheduleCampaign(_: AdminState, form: FormData): Promise
     .update({ status: "draft", scheduled_for: null, authorized_by: null }).eq("id", id.data).eq("status", "scheduled").select("id");
   if (!data?.length) return { error: "Only scheduled campaigns can be returned to draft." };
   await audit(user.id, "campaign.send", "campaign", id.data, { op: "unschedule" });
-  revalidatePath(`/admin/campaigns/${id.data}`);
+  revalidatePath(`/admin/campaigns/${id.data}`); revalidatePath(`/admin/newsletters/${id.data}`);
   return { ok: true, message: "Returned to draft." };
 }
 
@@ -137,6 +137,6 @@ export async function cancelCampaign(_: AdminState, form: FormData): Promise<Adm
   if (!data?.length) return { error: "This campaign can't be canceled." };
   await db.from("campaign_recipients").update({ status: "skipped", error: "campaign_canceled" }).eq("campaign_id", id.data).in("status", ["queued", "sending"]);
   await audit(user.id, "campaign.send", "campaign", id.data, { op: "cancel" });
-  revalidatePath(`/admin/campaigns/${id.data}`); revalidatePath("/admin/campaigns");
+  revalidatePath(`/admin/campaigns/${id.data}`); revalidatePath("/admin/campaigns"); revalidatePath(`/admin/newsletters/${id.data}`); revalidatePath("/admin/newsletters");
   return { ok: true, message: "Canceled. Unsent recipients were skipped." };
 }

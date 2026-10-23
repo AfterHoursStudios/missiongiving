@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { publicEnv, serverEnv } from "@/lib/env";
 import { getOrgSettings } from "@/lib/settings";
 import { isPlaceholderEmail } from "@/lib/admin/dp-import";
+import { renderNewsletterEmail } from "./render-newsletter";
 import { audienceSchema, consentBlock, selectRecipients, type CampaignKind } from "./audience";
 import { loadAudienceData } from "./data";
 import { renderCampaignEmail } from "./render";
@@ -23,7 +24,8 @@ export async function sendingProblems(): Promise<string[]> {
   return problems;
 }
 
-export interface CampaignRow { id: string; kind: CampaignKind; subject: string; body_html: string; audience: unknown; project_id: string | null; status: string }
+/** `design` is set for newsletters (blocks from the newsletter builder); their email is generated from it per recipient. */
+export interface CampaignRow { id: string; kind: CampaignKind; subject: string; body_html: string; audience: unknown; project_id: string | null; status: string; design?: unknown }
 
 export async function previewAudience(campaign: Pick<CampaignRow, "kind" | "audience">) {
   const { donors, suppressed } = await loadAudienceData();
@@ -84,13 +86,15 @@ async function processBatch(campaign: CampaignRow, size: number): Promise<BatchO
     // Consent is re-checked NOW, against current data: an unsubscribe since scheduling always wins.
     const block = !p || p.deleted_at || isPlaceholderEmail(p.email) ? "no_email" : consentBlock({ email: p.email ?? "", status: p.status, marketing_email: pr?.marketing_email ?? false, project_updates: pr?.project_updates ?? false, suppressed: pr?.suppressed ?? false }, campaign.kind, suppressed);
     if (block || !p) { out.skipped++; await db.from("campaign_recipients").update({ status: "skipped", error: block ?? "missing", updated_at: now() }).eq("id", c.id); continue; }
-    const rendered = await renderCampaignEmail({
-      subject: campaign.subject, bodyHtml: campaign.body_html,
+    const personal = {
       vars: { donor_first_name: p.first_name, donor_full_name: `${p.first_name} ${p.last_name}`, project_name: projectTitle ?? "", organization_name: settings.brand_name, dashboard_link: `${base}/dashboard` },
       org: { name: settings.brand_name, address: settings.mailing_address },
       unsubscribeUrl: `${base}/unsubscribe?t=${token(p.id)}`,
       oneClickUrl: `${base}/api/unsubscribe?t=${token(p.id)}`,
-    });
+    };
+    const rendered = campaign.design
+      ? await renderNewsletterEmail({ subject: campaign.subject, design: campaign.design, ...personal })
+      : await renderCampaignEmail({ subject: campaign.subject, bodyHtml: campaign.body_html, ...personal });
     ready.push({ recipientId: c.id, to: String(p.email).trim().toLowerCase(), rendered });
   }
   if (!ready.length) return out;
@@ -139,7 +143,7 @@ export async function runDueCampaigns(opts: { maxBatches?: number } = {}): Promi
     if (claimed?.length) { await materializeRecipients(c.id); summary.started++; }
   }
 
-  const { data: sending } = await db.from("communication_campaigns").select("id, kind, subject, body_html, audience, project_id, status").eq("status", "sending");
+  const { data: sending } = await db.from("communication_campaigns").select("id, kind, subject, body_html, audience, project_id, status, design").eq("status", "sending");
   if (!sending?.length) return summary;
   await db.from("campaign_recipients").update({ status: "queued", updated_at: new Date().toISOString() })
     .in("campaign_id", sending.map((s) => s.id)).eq("status", "sending").lt("updated_at", new Date(Date.now() - STALE_MS).toISOString());
