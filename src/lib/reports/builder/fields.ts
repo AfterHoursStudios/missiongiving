@@ -71,6 +71,7 @@ export const SOURCES = {
     label: "Donors", hint: "One row per donor, with their giving totals.",
     fields: [
       ...DONOR_FIELDS,
+      { key: "gift_date", label: "Gift date", type: "date", group: "Gift" },
       { key: "lifetime_giving", label: "Lifetime giving", type: "money", group: "Giving" },
       { key: "giving_12_months", label: "Giving, last 12 months", type: "money", group: "Giving" },
       { key: "gift_count", label: "Number of gifts", type: "number", group: "Giving" },
