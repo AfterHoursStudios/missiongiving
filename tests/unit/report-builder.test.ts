@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { displayValue, runDefinition, type Row } from "@/lib/reports/builder/engine";
-import { defaultDefinition, definitionSchema, fieldOf, resolvePeriod, restrictDefinition, type ReportDefinition } from "@/lib/reports/builder/fields";
+import { defaultDefinition, definitionSchema, fieldOf, opsFor, periodError, resolvePeriod, restrictDefinition, type ReportDefinition } from "@/lib/reports/builder/fields";
 
 const today = "2026-10-20";
 const rows: Row[] = [
@@ -74,18 +74,19 @@ describe("report definitions", () => {
 });
 
 describe("donor giving in a date range", () => {
-  // Rows as loadBuilderRows builds them for a 2025 date range: net settled giving and gift count within the dates.
+  // Rows as loadBuilderRows builds them for a 2025 range: net settled giving and gift count within the dates.
   const donors: Row[] = [
     { donor_name: "Ann Lee", lifetime_giving: 900000, period_giving: 500000, period_gift_count: 2 },
     { donor_name: "Bob Ray", lifetime_giving: 800000, period_giving: 499999, period_gift_count: 5 },
     { donor_name: "Cy Fox", lifetime_giving: 1200000, period_giving: 0, period_gift_count: 0 },
     { donor_name: "Di Kim", lifetime_giving: 600000, period_giving: 600000, period_gift_count: 1 },
   ];
+  const in2025 = { field: "gift_date", op: "between", value: "2025-01-01", value2: "2025-12-31" };
   const d2025: ReportDefinition = {
     ...defaultDefinition("donors"), columns: ["donor_name", "period_giving", "period_gift_count"],
-    filters: [{ field: "period_giving", op: "gte", value: "5000" }], sort: [{ field: "period_giving", dir: "desc" }],
-    period: { from: "2025-01-01", to: "2025-12-31" },
+    filters: [in2025, { field: "period_giving", op: "gte", value: "5000" }], sort: [{ field: "period_giving", dir: "desc" }],
   };
+  const names = (d: ReportDefinition) => runDefinition(donors, d, { today }).sections[0].rows.map((x) => x[0]);
 
   it("finds donors who gave $5,000 or more in the range, and totals what they gave", () => {
     const r = runDefinition(donors, d2025, { today });
@@ -93,25 +94,39 @@ describe("donor giving in a date range", () => {
     expect(r.totals).toEqual([null, 1100000, 3]);
   });
 
+  it("a Gift date filter on its own keeps donors who gave in the range", () => {
+    expect(names({ ...d2025, filters: [in2025] })).toEqual(["Di Kim", "Ann Lee", "Bob Ray"]);
+  });
+
   it("names the dates in the column headings", () => {
-    const r = runDefinition(donors, d2025, { today });
-    expect(r.columns.map((c) => c.label)).toEqual(["Donor name", "Giving 01/01/2025–12/31/2025", "Gifts 01/01/2025–12/31/2025"]);
+    expect(runDefinition(donors, d2025, { today }).columns.map((c) => c.label)).toEqual(["Donor name", "Giving 01/01/2025–12/31/2025", "Gifts 01/01/2025–12/31/2025"]);
+    const since = { ...d2025, filters: [{ field: "gift_date", op: "on_or_after", value: "2025-07-01" }] };
+    expect(runDefinition(donors, since, { today }).columns[1].label).toBe("Giving since 07/01/2025");
   });
 
-  it("needs both dates when a date-range field is used, and puts reversed dates in order", () => {
-    expect(resolvePeriod({ ...d2025, period: { from: "2025-01-01", to: "" } }).error).toMatch(/both dates/);
-    expect(resolvePeriod({ ...d2025, period: null }).error).toMatch(/both dates/);
-    expect(resolvePeriod({ ...d2025, columns: ["donor_name"], filters: [], sort: [], period: null }).error).toBeUndefined();
-    expect(resolvePeriod({ ...d2025, period: { from: "2025-12-31", to: "2025-01-01" } }).period).toEqual({ from: "2025-01-01", to: "2025-12-31" });
-    // Gift reports have no date range (they filter on Gift date instead).
-    expect(resolvePeriod({ ...defaultDefinition("gifts"), period: { from: "2025-01-01", to: "2025-12-31" } }).period).toBeNull();
+  it("takes the range from the Gift date filter, in any of its conditions", () => {
+    const range = (f: { field: string; op: string; value?: string; value2?: string }) => resolvePeriod({ ...d2025, filters: [f] }, today);
+    expect(range({ ...in2025, value: "2025-12-31", value2: "2025-01-01" })).toEqual({ from: "2025-01-01", to: "2025-12-31" });
+    expect(range({ field: "gift_date", op: "last_year" })).toEqual({ from: "2025-01-01", to: "2025-12-31" });
+    expect(range({ field: "gift_date", op: "this_year" })).toEqual({ from: "2026-01-01", to: "2026-12-31" });
+    expect(range({ field: "gift_date", op: "last_days", value: "30" })).toEqual({ from: "2026-09-20", to: today });
+    expect(range({ ...in2025, value2: "" })).toBeNull();
+    // Two Gift date filters narrow the range.
+    expect(resolvePeriod({ ...d2025, filters: [in2025, { field: "gift_date", op: "on_or_after", value: "2025-06-01" }] }, today)).toEqual({ from: "2025-06-01", to: "2025-12-31" });
+    // Gift reports have no date range: Gift date filters gifts there.
+    expect(resolvePeriod({ ...defaultDefinition("gifts"), filters: [in2025] }, today)).toBeNull();
   });
 
-  it("keeps older saved reports (no date range) loading, and rejects malformed dates", () => {
-    const older: Partial<ReportDefinition> = defaultDefinition("donors");
-    delete older.period;
-    expect(definitionSchema.safeParse(older).success).toBe(true);
-    expect(definitionSchema.safeParse({ ...d2025, period: { from: "1/1/25", to: "2025-12-31" } }).success).toBe(false);
-    expect(restrictDefinition({ ...defaultDefinition("gifts"), period: d2025.period }, true).def.period).toBeNull();
+  it("asks for a Gift date filter when a date-range field is used without one", () => {
+    expect(periodError(d2025)).toBeUndefined();
+    expect(periodError({ ...d2025, filters: [] })).toMatch(/Gift date filter/);
+    expect(periodError({ ...d2025, filters: [{ ...in2025, value: "" }] })).toMatch(/Gift date filter/);
+    expect(periodError({ ...d2025, columns: ["donor_name"], filters: [], sort: [] })).toBeUndefined();
+  });
+
+  it("offers only range conditions for Gift date on donor reports", () => {
+    expect(opsFor(fieldOf("donors", "gift_date")!).map((o) => o.value)).not.toContain("blank");
+    expect(opsFor(fieldOf("gifts", "gift_date")!).map((o) => o.value)).toContain("blank");
+    expect(restrictDefinition({ ...d2025, filters: [{ field: "gift_date", op: "blank" }] }, true).def.filters).toEqual([]);
   });
 });

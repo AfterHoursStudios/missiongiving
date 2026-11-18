@@ -6,7 +6,7 @@ import { toCsv } from "@/lib/csv";
 import { writeXlsx, type Cell } from "@/lib/xlsx";
 import { loadBuilderRows } from "@/lib/reports/builder/data";
 import { displayValue, runDefinition, type Value } from "@/lib/reports/builder/engine";
-import { definitionSchema, fieldOf, resolvePeriod, restrictDefinition, SOURCES, type FieldDef } from "@/lib/reports/builder/fields";
+import { definitionSchema, fieldOf, periodError, resolvePeriod, restrictDefinition, SOURCES, type FieldDef } from "@/lib/reports/builder/fields";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,11 +30,11 @@ export async function GET(request: Request) {
   const format = url.searchParams.get("format") === "xlsx" ? "xlsx" : "csv";
   const title = (url.searchParams.get("name") || `${SOURCES[def.source].label} report`).slice(0, 120);
 
-  const { period, error } = resolvePeriod(def);
+  const error = periodError(def);
   if (error) return new NextResponse(error, { status: 400 });
-  const { rows, today } = await loadBuilderRows(def.source, canViewDonors, period);
+  const { rows, today } = await loadBuilderRows(def, canViewDonors);
   const r = runDefinition(rows, def, { today });
-  await audit(user.id, "report.export", "report_builder", def.source, { format, columns: def.columns, filters: def.filters.map((f) => `${f.field} ${f.op}`), period, rows: r.count });
+  await audit(user.id, "report.export", "report_builder", def.source, { format, columns: def.columns, filters: def.filters.map((f) => `${f.field} ${f.op}`), period: resolvePeriod(def, today), rows: r.count });
 
   const fields: FieldDef[] = r.columns.map((c) => fieldOf(def.source, c.key)!);
   const groupLabel = def.groupBy ? fieldOf(def.source, def.groupBy)?.label : undefined;

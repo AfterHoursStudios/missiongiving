@@ -10,6 +10,8 @@ export interface FieldDef {
   /** Personal details (name, email, phone, address, notes): only for staff who can view donors. */
   pii?: boolean;
   options?: { value: string; label: string }[];
+  /** Limits the filter conditions offered (default: every condition for the field's type). */
+  ops?: string[];
 }
 
 const STATUS = [
@@ -81,7 +83,9 @@ export const SOURCES = {
       { key: "largest_gift", label: "Largest gift", type: "money", group: "Giving" },
       { key: "recurring_active", label: "Has an active recurring gift", type: "bool", group: "Giving" },
       { key: "recurring_amount", label: "Active recurring amount", type: "money", group: "Giving" },
-      // Totals over the report's date range (ReportDefinition.period), e.g. "gave $5,000 or more in 2025".
+      // A Gift date filter sets the report's date range: it keeps donors who gave in it, and the two fields below total
+      // their giving within it, e.g. "gave $5,000 or more in 2025".
+      { key: "gift_date", label: "Gift date", type: "date", group: "Giving in date range", ops: ["between", "on_or_after", "on_or_before", "last_days", "this_year", "last_year"] },
       { key: "period_giving", label: "Giving in date range", type: "money", group: "Giving in date range" },
       { key: "period_gift_count", label: "Gifts in date range", type: "number", group: "Giving in date range" },
     ] as FieldDef[],
@@ -116,10 +120,11 @@ export const OPERATORS: Record<FieldType, { value: string; label: string; needs:
 
 export const fieldOf = (source: SourceKey, key: string): FieldDef | undefined => (SOURCES[source].fields as FieldDef[]).find((f) => f.key === key);
 
-/** Fields totalled over the report's date range; they need ReportDefinition.period set. */
+/** Donor-report fields totalled over the date range a Gift date filter sets. */
 export const PERIOD_FIELDS = ["period_giving", "period_gift_count"];
 
-const ymdOrBlank = z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, "Enter dates as YYYY-MM-DD");
+/** The filter conditions a field offers. */
+export const opsFor = (field: FieldDef) => OPERATORS[field.type].filter((o) => !field.ops || field.ops.includes(o.value));
 const filterSchema = z.object({
   field: z.string().max(40), op: z.string().max(20),
   value: z.string().max(200).optional(), value2: z.string().max(200).optional(), values: z.array(z.string().max(60)).max(20).optional(),
@@ -131,8 +136,6 @@ export const definitionSchema = z.object({
   sort: z.array(z.object({ field: z.string().max(40), dir: z.enum(["asc", "desc"]) })).max(3),
   groupBy: z.string().max(40).nullable(),
   summaryOnly: z.boolean(),
-  /** Donors only: the dates "Giving in date range" and "Gifts in date range" cover, inclusive. Optional so older saved reports still load. */
-  period: z.object({ from: ymdOrBlank, to: ymdOrBlank }).nullable().optional(),
 });
 export type ReportDefinition = z.infer<typeof definitionSchema>;
 export type ReportFilter = z.infer<typeof filterSchema>;
@@ -142,7 +145,7 @@ export function defaultDefinition(source: SourceKey): ReportDefinition {
     source, columns: [...SOURCES[source].defaultColumns],
     // Gift reports start with settled gifts only, like every other report; remove the filter to see the rest.
     filters: source === "gifts" ? [{ field: "status", op: "in", values: ["succeeded", "partially_refunded", "refunded"] }, { field: "gift_date", op: "this_year" }] : [],
-    sort: [{ field: source === "gifts" ? "gift_date" : "lifetime_giving", dir: "desc" }], groupBy: null, summaryOnly: false, period: null,
+    sort: [{ field: source === "gifts" ? "gift_date" : "lifetime_giving", dir: "desc" }], groupBy: null, summaryOnly: false,
   };
 }
 
@@ -153,15 +156,36 @@ export function defaultDefinition(source: SourceKey): ReportDefinition {
 /** The fields a definition uses anywhere: columns, filters, sorting and grouping. */
 const usedFields = (def: ReportDefinition) => [...def.columns, ...def.filters.map((f) => f.field), ...def.sort.map((s) => s.field), ...(def.groupBy ? [def.groupBy] : [])];
 
+const addDays = (ymd: string, days: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+
 /**
- * The date range in order (earliest first), or null when there isn't a complete one. An error when the report uses a
- * date-range field without both dates, since its totals would mean nothing.
+ * The date range a donor report's Gift date filters set (several narrow it), or null when there's no complete one.
+ * `today` is "YYYY-MM-DD" in the organization's time zone.
  */
-export function resolvePeriod(def: ReportDefinition): { period: { from: string; to: string } | null; error?: string } {
-  const p = def.source === "donors" ? def.period : null;
-  if (p?.from && p.to) return { period: p.from <= p.to ? { from: p.from, to: p.to } : { from: p.to, to: p.from } };
-  if (usedFields(def).some((k) => PERIOD_FIELDS.includes(k))) return { period: null, error: "Enter both dates of the date range to use Giving in date range or Gifts in date range." };
-  return { period: null };
+export function resolvePeriod(def: ReportDefinition, today: string): { from: string; to: string } | null {
+  if (def.source !== "donors") return null;
+  let range = null as { from: string; to: string } | null;
+  for (const f of def.filters) {
+    if (f.field !== "gift_date") continue;
+    const a = f.value?.trim() ?? "", b = f.value2?.trim() ?? "", year = Number(today.slice(0, 4));
+    let r: { from: string; to: string } | null = null;
+    if (f.op === "between" && a && b) r = a <= b ? { from: a, to: b } : { from: b, to: a };
+    else if (f.op === "on_or_after" && a) r = { from: a, to: "9999-12-31" };
+    else if (f.op === "on_or_before" && a) r = { from: "0000-01-01", to: a };
+    else if (f.op === "last_days" && a && Number.isFinite(Number(a))) r = { from: addDays(today, -Math.max(0, Math.floor(Number(a)))), to: today };
+    else if (f.op === "this_year") r = { from: `${year}-01-01`, to: `${year}-12-31` };
+    else if (f.op === "last_year") r = { from: `${year - 1}-01-01`, to: `${year - 1}-12-31` };
+    if (r) range = range ? { from: r.from > range.from ? r.from : range.from, to: r.to < range.to ? r.to : range.to } : r;
+  }
+  return range;
+}
+
+/** An error when a donor report uses a date-range field without a complete Gift date filter to set the dates. */
+export function periodError(def: ReportDefinition): string | undefined {
+  if (def.source !== "donors" || !usedFields(def).some((k) => PERIOD_FIELDS.includes(k))) return undefined;
+  // Any "today" will do: whether a filter is complete doesn't depend on the date.
+  if (resolvePeriod(def, "2000-01-01")) return undefined;
+  return "Add a Gift date filter (and fill in its dates) to set the date range for Giving in date range and Gifts in date range.";
 }
 
 export function restrictDefinition(def: ReportDefinition, canViewDonors: boolean): { def: ReportDefinition; removed: string[] } {
@@ -172,12 +196,11 @@ export function restrictDefinition(def: ReportDefinition, canViewDonors: boolean
     removed.add(f?.label ?? key);
     return false;
   };
-  const filters = def.filters.filter((f) => ok(f.field) && OPERATORS[fieldOf(def.source, f.field)!.type].some((o) => o.value === f.op));
+  const filters = def.filters.filter((f) => ok(f.field) && opsFor(fieldOf(def.source, f.field)!).some((o) => o.value === f.op));
   return {
     def: {
       ...def, columns: def.columns.filter(ok), filters, sort: def.sort.filter((s) => ok(s.field)),
       groupBy: def.groupBy && ok(def.groupBy) ? def.groupBy : null,
-      period: def.source === "donors" ? def.period ?? null : null,
     },
     removed: [...removed],
   };

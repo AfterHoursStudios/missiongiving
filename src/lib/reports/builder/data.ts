@@ -6,7 +6,7 @@ import { zoned } from "@/lib/admin/metrics";
 import { isPlaceholderEmail } from "@/lib/admin/dp-import";
 import { SETTLED_STATUSES } from "@/lib/donations/status";
 import { twelveMonthsBefore, type Row } from "./engine";
-import { SOURCES, type FieldDef, type SourceKey } from "./fields";
+import { SOURCES, resolvePeriod, type FieldDef, type ReportDefinition } from "./fields";
 
 const one = <T,>(v: T | T[] | null | undefined) => (Array.isArray(v) ? v[0] : v) ?? null;
 
@@ -14,11 +14,13 @@ const one = <T,>(v: T | T[] | null | undefined) => (Array.isArray(v) ? v[0] : v)
  * Rows for a report-builder report. Callers MUST have passed requirePermission("reports.view"). Without donors.view,
  * personal details (FieldDef.pii) are blanked here as well as being removed from the definition.
  */
-export async function loadBuilderRows(source: SourceKey, canViewDonors: boolean, period: { from: string; to: string } | null = null): Promise<{ rows: Row[]; today: string }> {
+export async function loadBuilderRows(def: ReportDefinition, canViewDonors: boolean): Promise<{ rows: Row[]; today: string }> {
+  const { source } = def;
   const db = createSupabaseAdminClient();
   const { timezone } = await getOrgSettings();
   const ymd = (iso: string | null) => { if (!iso) return null; const p = zoned(iso, timezone); return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`; };
   const today = ymd(new Date().toISOString())!;
+  const period = resolvePeriod(def, today); // from a donor report's Gift date filter
 
   const [donorsRes, tagsRes] = await Promise.all([
     fetchAll(() => db.from("donor_profiles").select("id, first_name, last_name, organization_name, email, phone, address_line1, address_line2, city, region, postal_code, country, status, created_at")

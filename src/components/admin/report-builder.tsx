@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, FileSpreadsheet, FileText, Play, Plus, Printer, Save, Trash2, X } from "lucide-react";
 import { deleteBuilderReport, runBuilderReport, saveBuilderReport, type RunResult } from "@/lib/reports/builder/actions";
 import { displayValue } from "@/lib/reports/builder/engine";
-import { OPERATORS, SOURCES, defaultDefinition, fieldOf, resolvePeriod, type FieldDef, type ReportDefinition, type ReportFilter, type SourceKey } from "@/lib/reports/builder/fields";
+import { SOURCES, defaultDefinition, fieldOf, opsFor, periodError as periodErrorOf, type FieldDef, type ReportDefinition, type ReportFilter, type SourceKey } from "@/lib/reports/builder/fields";
 
 const input = "min-h-11 rounded-md border border-ink-soft/60 bg-white px-2";
 const step = "min-w-0 rounded-xl border border-line bg-white p-4 shadow-sm sm:p-5";
@@ -40,14 +40,13 @@ export function ReportBuilder({ saved, initial, canViewDonors }: { saved: SavedR
   const groups = useMemo(() => [...new Set(fields.map((f) => f.group))], [fields]);
   const label = (key: string) => fieldOf(def.source, key)?.label ?? key;
   const update = (patch: Partial<ReportDefinition>) => { setDef((d) => ({ ...d, ...patch })); setNotice(null); };
-  const periodError = resolvePeriod(def).error;
-  const setPeriod = (patch: { from?: string; to?: string }) => update({ period: { from: def.period?.from ?? "", to: def.period?.to ?? "", ...patch } });
+  const periodError = periodErrorOf(def);
   const cannotExport = def.columns.length === 0 || !!periodError;
 
   const toggleColumn = (key: string) => update({ columns: def.columns.includes(key) ? def.columns.filter((c) => c !== key) : [...def.columns, key] });
   const moveColumn = (i: number, by: number) => { const c = [...def.columns]; [c[i], c[i + by]] = [c[i + by], c[i]]; update({ columns: c }); };
   const setFilter = (i: number, patch: Partial<ReportFilter>) => update({ filters: def.filters.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
-  const addFilter = () => { const f = fields[0]; update({ filters: [...def.filters, { field: f.key, op: OPERATORS[f.type][0].value }] }); };
+  const addFilter = () => { const f = fields[0]; update({ filters: [...def.filters, { field: f.key, op: opsFor(f)[0].value }] }); };
   const setSort = (i: number, field: string, dir: "asc" | "desc") => {
     const s = [...def.sort];
     if (!field) s.splice(i); else s[i] = { field, dir };
@@ -119,22 +118,12 @@ export function ReportBuilder({ saved, initial, canViewDonors }: { saved: SavedR
         <h2 id="b-filters" className="text-lg font-semibold">3. Filters</h2>
         <p className="text-sm text-ink-soft">Only rows that match every filter are included.</p>
         {def.source === "donors" && (
-          <fieldset className="mt-3 rounded-md border border-line p-3">
-            <legend className="px-1 font-semibold">Date range for giving totals</legend>
-            <p className="text-sm text-ink-soft">
-              Sets the dates that <strong>Giving in date range</strong> and <strong>Gifts in date range</strong> cover (settled gifts, less refunds).
-              To find donors who gave a certain amount, add a filter such as <em>Giving in date range is at least 5000</em>.
-            </p>
-            <div className="mt-2 flex flex-wrap items-end gap-3">
-              <div><label htmlFor="period-from" className="block text-sm font-semibold">From</label>
-                <input id="period-from" type="date" value={def.period?.from ?? ""} onChange={(e) => setPeriod({ from: e.target.value })} className={`${input} w-44`} /></div>
-              <div><label htmlFor="period-to" className="block text-sm font-semibold">To</label>
-                <input id="period-to" type="date" value={def.period?.to ?? ""} onChange={(e) => setPeriod({ to: e.target.value })} className={`${input} w-44`} /></div>
-              {(def.period?.from || def.period?.to) && <button type="button" onClick={() => update({ period: null })} className="min-h-11 px-2 font-semibold text-teal-600 hover:underline">Clear dates</button>}
-            </div>
-            {periodError && <p className="mt-2 text-sm text-danger">{periodError}</p>}
-          </fieldset>
+          <p className="mt-1 text-sm text-ink-soft">
+            To total giving over certain dates, add a <strong>Gift date</strong> filter: it keeps donors who gave in those dates and sets what
+            <strong> Giving in date range</strong> and <strong>Gifts in date range</strong> cover. Then filter on those, e.g. <em>Giving in date range is at least 5000</em>.
+          </p>
         )}
+        {periodError && <p role="alert" className="mt-2 text-sm text-danger">{periodError}</p>}
         <ul className="mt-3 space-y-2">
           {def.filters.map((f, i) => <FilterRow key={i} index={i} filter={f} fields={fields} onChange={(p) => setFilter(i, p)} onRemove={() => update({ filters: def.filters.filter((_, j) => j !== i) })} />)}
         </ul>
@@ -197,14 +186,14 @@ function FilterRow({ index, filter, fields, onChange, onRemove }: {
   index: number; filter: ReportFilter; fields: FieldDef[]; onChange: (p: Partial<ReportFilter>) => void; onRemove: () => void;
 }) {
   const field = fields.find((f) => f.key === filter.field) ?? fields[0];
-  const ops = OPERATORS[field.type];
+  const ops = opsFor(field);
   const op = ops.find((o) => o.value === filter.op) ?? ops[0];
   const kind = field.type === "date" ? (op.value === "last_days" ? "number" : "date") : field.type === "money" || field.type === "number" ? "number" : "text";
   const id = `f${index}`;
   return (
     <li className="flex flex-wrap items-start gap-2 rounded-md bg-paper-2 p-2">
       <select aria-label={`Filter ${index + 1} field`} className={`${input} min-w-44`} value={field.key}
-        onChange={(e) => { const nf = fields.find((f) => f.key === e.target.value)!; onChange({ field: nf.key, op: OPERATORS[nf.type][0].value, value: undefined, value2: undefined, values: undefined }); }}>
+        onChange={(e) => { const nf = fields.find((f) => f.key === e.target.value)!; onChange({ field: nf.key, op: opsFor(nf)[0].value, value: undefined, value2: undefined, values: undefined }); }}>
         {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
       </select>
       <select aria-label={`Filter ${index + 1} condition`} className={input} value={op.value} onChange={(e) => onChange({ op: e.target.value })}>

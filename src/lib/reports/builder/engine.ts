@@ -14,7 +14,9 @@ const dollarsToCents = (s: string | undefined) => { const n = Number(String(s ??
 const num = (s: string | undefined) => Number(String(s ?? "").replace(/[,\s]/g, ""));
 
 /** True when the row passes one filter. Filters that can't be evaluated (a missing value) don't exclude anything. */
-export function matches(row: Row, f: ReportFilter, field: FieldDef, today: string): boolean {
+export function matches(row: Row, f: ReportFilter, field: FieldDef, today: string, source: SourceKey = "gifts"): boolean {
+  // On a donor report, Gift date sets the date range (resolvePeriod) and keeps donors who gave in it.
+  if (source === "donors" && field.key === "gift_date") return typeof row.period_gift_count === "number" ? row.period_gift_count > 0 : true;
   const v = row[field.key] ?? null;
   const op = OPERATORS[field.type].find((o) => o.value === f.op);
   if (!op) return true;
@@ -95,9 +97,9 @@ export function displayValue(field: Pick<FieldDef, "type" | "options">, v: Value
  */
 export function runDefinition(rows: Row[], def: ReportDefinition, opts: { today: string; limit?: number }): ReportResult {
   const src: SourceKey = def.source;
-  const columns = def.columns.map((k) => fieldOf(src, k)!).filter(Boolean).map((f) => ({ key: f.key, label: columnLabel(def, f), type: f.type }));
+  const columns = def.columns.map((k) => fieldOf(src, k)!).filter(Boolean).map((f) => ({ key: f.key, label: columnLabel(def, f, opts.today), type: f.type }));
   const filters = def.filters.map((f) => ({ f, field: fieldOf(src, f.field)! })).filter((x) => x.field);
-  const kept = rows.filter((r) => filters.every(({ f, field }) => matches(r, f, field, opts.today)));
+  const kept = rows.filter((r) => filters.every(({ f, field }) => matches(r, f, field, opts.today, src)));
 
   const sorts = def.sort.filter((s) => fieldOf(src, s.field));
   kept.sort((a, b) => {
@@ -139,10 +141,11 @@ export function runDefinition(rows: Row[], def: ReportDefinition, opts: { today:
 }
 
 /** A column's heading. Date-range fields name their dates, so an exported file says what period it covers. */
-export function columnLabel(def: ReportDefinition, field: FieldDef): string {
-  const { period } = resolvePeriod(def);
+export function columnLabel(def: ReportDefinition, field: FieldDef, today: string): string {
+  const period = resolvePeriod(def, today);
   if (!period || !PERIOD_FIELDS.includes(field.key)) return field.label;
-  const range = `${displayValue({ type: "date" }, period.from)}–${displayValue({ type: "date" }, period.to)}`;
+  const d = (v: string) => displayValue({ type: "date" }, v);
+  const range = period.from === "0000-01-01" ? `through ${d(period.to)}` : period.to === "9999-12-31" ? `since ${d(period.from)}` : `${d(period.from)}–${d(period.to)}`;
   return field.key === "period_giving" ? `Giving ${range}` : `Gifts ${range}`;
 }
 
