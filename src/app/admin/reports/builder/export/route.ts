@@ -6,7 +6,7 @@ import { toCsv } from "@/lib/csv";
 import { writeXlsx, type Cell } from "@/lib/xlsx";
 import { loadBuilderRows } from "@/lib/reports/builder/data";
 import { displayValue, runDefinition, type Value } from "@/lib/reports/builder/engine";
-import { definitionSchema, fieldOf, restrictDefinition, SOURCES, type FieldDef } from "@/lib/reports/builder/fields";
+import { definitionSchema, fieldOf, resolvePeriod, restrictDefinition, SOURCES, type FieldDef } from "@/lib/reports/builder/fields";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,9 +30,11 @@ export async function GET(request: Request) {
   const format = url.searchParams.get("format") === "xlsx" ? "xlsx" : "csv";
   const title = (url.searchParams.get("name") || `${SOURCES[def.source].label} report`).slice(0, 120);
 
-  const { rows, today } = await loadBuilderRows(def.source, canViewDonors);
+  const { period, error } = resolvePeriod(def);
+  if (error) return new NextResponse(error, { status: 400 });
+  const { rows, today } = await loadBuilderRows(def.source, canViewDonors, period);
   const r = runDefinition(rows, def, { today });
-  await audit(user.id, "report.export", "report_builder", def.source, { format, columns: def.columns, filters: def.filters.map((f) => `${f.field} ${f.op}`), rows: r.count });
+  await audit(user.id, "report.export", "report_builder", def.source, { format, columns: def.columns, filters: def.filters.map((f) => `${f.field} ${f.op}`), period, rows: r.count });
 
   const fields: FieldDef[] = r.columns.map((c) => fieldOf(def.source, c.key)!);
   const groupLabel = def.groupBy ? fieldOf(def.source, def.groupBy)?.label : undefined;
@@ -50,7 +52,7 @@ export async function GET(request: Request) {
       if (s.label !== null) lines.push(totalRow(`Subtotal ${s.label}`, s.count, s.totals));
     }
     lines.push(totalRow("Total", r.count, r.totals));
-    return new NextResponse(toCsv(fields.map((f) => f.label), lines), {
+    return new NextResponse(toCsv(r.columns.map((c) => c.label), lines), {
       headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${file}.csv"`, "Cache-Control": "private, no-store" },
     });
   }
@@ -63,7 +65,7 @@ export async function GET(request: Request) {
   };
   const totalRow = (label: string, count: number, totals: (number | null)[]): Cell[] =>
     fields.map((f, i) => (totals[i] !== null ? xcell(f, totals[i], true) : i === 0 ? { v: countLabel(label, count), s: "bold" } : null));
-  const sheet: Cell[][] = [[{ v: title, s: "title" }], [`Generated ${today} · ${r.count.toLocaleString("en-US")} rows`], [], fields.map((f) => ({ v: f.label, s: "header" }))];
+  const sheet: Cell[][] = [[{ v: title, s: "title" }], [`Generated ${today} · ${r.count.toLocaleString("en-US")} rows`], [], r.columns.map((c) => ({ v: c.label, s: "header" }))];
   for (const s of r.sections) {
     if (s.label !== null) sheet.push([{ v: `${groupLabel}: ${s.label}`, s: "bold" }]);
     for (const row of s.rows) sheet.push(row.map((v, i) => xcell(fields[i], v)));

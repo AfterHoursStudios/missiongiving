@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { displayValue, runDefinition, type Row } from "@/lib/reports/builder/engine";
-import { defaultDefinition, definitionSchema, fieldOf, restrictDefinition, type ReportDefinition } from "@/lib/reports/builder/fields";
+import { defaultDefinition, definitionSchema, fieldOf, resolvePeriod, restrictDefinition, type ReportDefinition } from "@/lib/reports/builder/fields";
 
 const today = "2026-10-20";
 const rows: Row[] = [
@@ -70,5 +70,48 @@ describe("report definitions", () => {
   it("validates saved definitions", () => {
     expect(definitionSchema.safeParse(defaultDefinition("donors")).success).toBe(true);
     expect(definitionSchema.safeParse({ ...defaultDefinition("donors"), columns: [] }).success).toBe(false);
+  });
+});
+
+describe("donor giving in a date range", () => {
+  // Rows as loadBuilderRows builds them for a 2025 date range: net settled giving and gift count within the dates.
+  const donors: Row[] = [
+    { donor_name: "Ann Lee", lifetime_giving: 900000, period_giving: 500000, period_gift_count: 2 },
+    { donor_name: "Bob Ray", lifetime_giving: 800000, period_giving: 499999, period_gift_count: 5 },
+    { donor_name: "Cy Fox", lifetime_giving: 1200000, period_giving: 0, period_gift_count: 0 },
+    { donor_name: "Di Kim", lifetime_giving: 600000, period_giving: 600000, period_gift_count: 1 },
+  ];
+  const d2025: ReportDefinition = {
+    ...defaultDefinition("donors"), columns: ["donor_name", "period_giving", "period_gift_count"],
+    filters: [{ field: "period_giving", op: "gte", value: "5000" }], sort: [{ field: "period_giving", dir: "desc" }],
+    period: { from: "2025-01-01", to: "2025-12-31" },
+  };
+
+  it("finds donors who gave $5,000 or more in the range, and totals what they gave", () => {
+    const r = runDefinition(donors, d2025, { today });
+    expect(r.sections[0].rows).toEqual([["Di Kim", 600000, 1], ["Ann Lee", 500000, 2]]);
+    expect(r.totals).toEqual([null, 1100000, 3]);
+  });
+
+  it("names the dates in the column headings", () => {
+    const r = runDefinition(donors, d2025, { today });
+    expect(r.columns.map((c) => c.label)).toEqual(["Donor name", "Giving 01/01/2025–12/31/2025", "Gifts 01/01/2025–12/31/2025"]);
+  });
+
+  it("needs both dates when a date-range field is used, and puts reversed dates in order", () => {
+    expect(resolvePeriod({ ...d2025, period: { from: "2025-01-01", to: "" } }).error).toMatch(/both dates/);
+    expect(resolvePeriod({ ...d2025, period: null }).error).toMatch(/both dates/);
+    expect(resolvePeriod({ ...d2025, columns: ["donor_name"], filters: [], sort: [], period: null }).error).toBeUndefined();
+    expect(resolvePeriod({ ...d2025, period: { from: "2025-12-31", to: "2025-01-01" } }).period).toEqual({ from: "2025-01-01", to: "2025-12-31" });
+    // Gift reports have no date range (they filter on Gift date instead).
+    expect(resolvePeriod({ ...defaultDefinition("gifts"), period: { from: "2025-01-01", to: "2025-12-31" } }).period).toBeNull();
+  });
+
+  it("keeps older saved reports (no date range) loading, and rejects malformed dates", () => {
+    const older: Partial<ReportDefinition> = defaultDefinition("donors");
+    delete older.period;
+    expect(definitionSchema.safeParse(older).success).toBe(true);
+    expect(definitionSchema.safeParse({ ...d2025, period: { from: "1/1/25", to: "2025-12-31" } }).success).toBe(false);
+    expect(restrictDefinition({ ...defaultDefinition("gifts"), period: d2025.period }, true).def.period).toBeNull();
   });
 });

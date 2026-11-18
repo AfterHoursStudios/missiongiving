@@ -7,7 +7,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { loadBuilderRows } from "./data";
 import { runDefinition, type ReportResult } from "./engine";
-import { definitionSchema, restrictDefinition, type ReportDefinition } from "./fields";
+import { definitionSchema, resolvePeriod, restrictDefinition, type ReportDefinition } from "./fields";
 
 /** Rows shown on screen; exports include every row. */
 const PREVIEW_ROWS = 1000;
@@ -23,7 +23,9 @@ export async function runBuilderReport(raw: unknown): Promise<RunResult> {
   const canViewDonors = perms.has("donors.view");
   const { def, removed } = restrictDefinition(parsed.data, canViewDonors);
   if (def.columns.length === 0) return { ok: false, error: "Choose at least one column you have access to." };
-  const { rows, today } = await loadBuilderRows(def.source, canViewDonors);
+  const { period, error } = resolvePeriod(def);
+  if (error) return { ok: false, error };
+  const { rows, today } = await loadBuilderRows(def.source, canViewDonors, period);
   return { ok: true, result: runDefinition(rows, def, { today, limit: PREVIEW_ROWS }), removed, def };
 }
 

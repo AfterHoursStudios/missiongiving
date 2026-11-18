@@ -1,5 +1,5 @@
 import { addMonths } from "../dashboard";
-import { OPERATORS, fieldOf, type FieldDef, type ReportDefinition, type ReportFilter, type SourceKey } from "./fields";
+import { OPERATORS, PERIOD_FIELDS, fieldOf, resolvePeriod, type FieldDef, type ReportDefinition, type ReportFilter, type SourceKey } from "./fields";
 
 /** A report row: field key → value. Dates "YYYY-MM-DD", money in cents, yes/no as booleans. */
 export type Value = string | number | boolean | null;
@@ -95,7 +95,7 @@ export function displayValue(field: Pick<FieldDef, "type" | "options">, v: Value
  */
 export function runDefinition(rows: Row[], def: ReportDefinition, opts: { today: string; limit?: number }): ReportResult {
   const src: SourceKey = def.source;
-  const columns = def.columns.map((k) => fieldOf(src, k)!).filter(Boolean).map((f) => ({ key: f.key, label: f.label, type: f.type }));
+  const columns = def.columns.map((k) => fieldOf(src, k)!).filter(Boolean).map((f) => ({ key: f.key, label: columnLabel(def, f), type: f.type }));
   const filters = def.filters.map((f) => ({ f, field: fieldOf(src, f.field)! })).filter((x) => x.field);
   const kept = rows.filter((r) => filters.every(({ f, field }) => matches(r, f, field, opts.today)));
 
@@ -136,6 +136,14 @@ export function runDefinition(rows: Row[], def: ReportDefinition, opts: { today:
   }
   const returned = sections.reduce((n, s) => n + s.rows.length, 0);
   return { columns, sections, count: kept.length, totals: sumOf(kept), truncated: !def.summaryOnly && returned < kept.length };
+}
+
+/** A column's heading. Date-range fields name their dates, so an exported file says what period it covers. */
+export function columnLabel(def: ReportDefinition, field: FieldDef): string {
+  const { period } = resolvePeriod(def);
+  if (!period || !PERIOD_FIELDS.includes(field.key)) return field.label;
+  const range = `${displayValue({ type: "date" }, period.from)}–${displayValue({ type: "date" }, period.to)}`;
+  return field.key === "period_giving" ? `Giving ${range}` : `Gifts ${range}`;
 }
 
 /** "Last 12 months" boundary used by the donor report's giving column. */

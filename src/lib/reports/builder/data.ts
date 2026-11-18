@@ -14,7 +14,7 @@ const one = <T,>(v: T | T[] | null | undefined) => (Array.isArray(v) ? v[0] : v)
  * Rows for a report-builder report. Callers MUST have passed requirePermission("reports.view"). Without donors.view,
  * personal details (FieldDef.pii) are blanked here as well as being removed from the definition.
  */
-export async function loadBuilderRows(source: SourceKey, canViewDonors: boolean): Promise<{ rows: Row[]; today: string }> {
+export async function loadBuilderRows(source: SourceKey, canViewDonors: boolean, period: { from: string; to: string } | null = null): Promise<{ rows: Row[]; today: string }> {
   const db = createSupabaseAdminClient();
   const { timezone } = await getOrgSettings();
   const ymd = (iso: string | null) => { if (!iso) return null; const p = zoned(iso, timezone); return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`; };
@@ -69,13 +69,14 @@ export async function loadBuilderRows(source: SourceKey, canViewDonors: boolean)
     for (const r of rec ?? []) recurring.set(r.donor_id, (recurring.get(r.donor_id) ?? 0) + r.amount_cents);
     const settled = SETTLED_STATUSES as readonly string[];
     const since = twelveMonthsBefore(today);
-    const giving = new Map<string, { total: number; year: number; count: number; first: [string, number] | null; last: [string, number] | null; max: number }>();
+    const giving = new Map<string, { total: number; year: number; count: number; first: [string, number] | null; last: [string, number] | null; max: number; inPeriod: number; inPeriodCount: number }>();
     for (const g of giftsRes.data ?? []) {
       if (!settled.includes(g.status)) continue;
       const date = ymd(g.settled_at ?? g.donated_at)!, net = g.amount_cents - g.refunded_cents;
-      const e = giving.get(g.donor_id) ?? { total: 0, year: 0, count: 0, first: null, last: null, max: 0 };
+      const e = giving.get(g.donor_id) ?? { total: 0, year: 0, count: 0, first: null, last: null, max: 0, inPeriod: 0, inPeriodCount: 0 };
       e.total += net; e.count++; e.max = Math.max(e.max, g.amount_cents);
       if (date > since && date <= today) e.year += net;
+      if (period && date >= period.from && date <= period.to) { e.inPeriod += net; e.inPeriodCount++; }
       if (!e.first || date < e.first[0]) e.first = [date, g.amount_cents];
       if (!e.last || date > e.last[0]) e.last = [date, g.amount_cents];
       giving.set(g.donor_id, e);
@@ -87,6 +88,8 @@ export async function loadBuilderRows(source: SourceKey, canViewDonors: boolean)
         first_gift_date: e?.first?.[0] ?? null, first_gift_amount: e?.first?.[1] ?? null,
         last_gift_date: e?.last?.[0] ?? null, last_gift_amount: e?.last?.[1] ?? null, largest_gift: e ? e.max : null,
         recurring_active: recurring.has(id), recurring_amount: recurring.get(id) ?? null,
+        // Blank without a date range, so a filter on them can't match by accident.
+        period_giving: period ? e?.inPeriod ?? 0 : null, period_gift_count: period ? e?.inPeriodCount ?? 0 : null,
       };
     });
   }

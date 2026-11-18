@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, FileSpreadsheet, FileText, Play, Plus, Printer, Save, Trash2, X } from "lucide-react";
 import { deleteBuilderReport, runBuilderReport, saveBuilderReport, type RunResult } from "@/lib/reports/builder/actions";
 import { displayValue } from "@/lib/reports/builder/engine";
-import { OPERATORS, SOURCES, defaultDefinition, fieldOf, type FieldDef, type ReportDefinition, type ReportFilter, type SourceKey } from "@/lib/reports/builder/fields";
+import { OPERATORS, SOURCES, defaultDefinition, fieldOf, resolvePeriod, type FieldDef, type ReportDefinition, type ReportFilter, type SourceKey } from "@/lib/reports/builder/fields";
 
 const input = "min-h-11 rounded-md border border-ink-soft/60 bg-white px-2";
 const step = "min-w-0 rounded-xl border border-line bg-white p-4 shadow-sm sm:p-5";
@@ -40,6 +40,9 @@ export function ReportBuilder({ saved, initial, canViewDonors }: { saved: SavedR
   const groups = useMemo(() => [...new Set(fields.map((f) => f.group))], [fields]);
   const label = (key: string) => fieldOf(def.source, key)?.label ?? key;
   const update = (patch: Partial<ReportDefinition>) => { setDef((d) => ({ ...d, ...patch })); setNotice(null); };
+  const periodError = resolvePeriod(def).error;
+  const setPeriod = (patch: { from?: string; to?: string }) => update({ period: { from: def.period?.from ?? "", to: def.period?.to ?? "", ...patch } });
+  const cannotExport = def.columns.length === 0 || !!periodError;
 
   const toggleColumn = (key: string) => update({ columns: def.columns.includes(key) ? def.columns.filter((c) => c !== key) : [...def.columns, key] });
   const moveColumn = (i: number, by: number) => { const c = [...def.columns]; [c[i], c[i + by]] = [c[i + by], c[i]]; update({ columns: c }); };
@@ -115,6 +118,23 @@ export function ReportBuilder({ saved, initial, canViewDonors }: { saved: SavedR
       <section aria-labelledby="b-filters" className={step}>
         <h2 id="b-filters" className="text-lg font-semibold">3. Filters</h2>
         <p className="text-sm text-ink-soft">Only rows that match every filter are included.</p>
+        {def.source === "donors" && (
+          <fieldset className="mt-3 rounded-md border border-line p-3">
+            <legend className="px-1 font-semibold">Date range for giving totals</legend>
+            <p className="text-sm text-ink-soft">
+              Sets the dates that <strong>Giving in date range</strong> and <strong>Gifts in date range</strong> cover (settled gifts, less refunds).
+              To find donors who gave a certain amount, add a filter such as <em>Giving in date range is at least 5000</em>.
+            </p>
+            <div className="mt-2 flex flex-wrap items-end gap-3">
+              <div><label htmlFor="period-from" className="block text-sm font-semibold">From</label>
+                <input id="period-from" type="date" value={def.period?.from ?? ""} onChange={(e) => setPeriod({ from: e.target.value })} className={`${input} w-44`} /></div>
+              <div><label htmlFor="period-to" className="block text-sm font-semibold">To</label>
+                <input id="period-to" type="date" value={def.period?.to ?? ""} onChange={(e) => setPeriod({ to: e.target.value })} className={`${input} w-44`} /></div>
+              {(def.period?.from || def.period?.to) && <button type="button" onClick={() => update({ period: null })} className="min-h-11 px-2 font-semibold text-teal-600 hover:underline">Clear dates</button>}
+            </div>
+            {periodError && <p className="mt-2 text-sm text-danger">{periodError}</p>}
+          </fieldset>
+        )}
         <ul className="mt-3 space-y-2">
           {def.filters.map((f, i) => <FilterRow key={i} index={i} filter={f} fields={fields} onChange={(p) => setFilter(i, p)} onRemove={() => update({ filters: def.filters.filter((_, j) => j !== i) })} />)}
         </ul>
@@ -156,8 +176,8 @@ export function ReportBuilder({ saved, initial, canViewDonors }: { saved: SavedR
 
       <div className="no-print sticky bottom-0 z-10 -mx-1 flex flex-wrap items-end gap-3 rounded-xl border border-line bg-white/95 p-3 shadow-md backdrop-blur">
         <button type="button" onClick={doRun} disabled={running || def.columns.length === 0} className={`${btn} bg-teal-800 text-white hover:bg-teal-800/90`}><Play size={18} aria-hidden="true" />{running ? "Running…" : "Run report"}</button>
-        <a href={exportHref("csv")} aria-disabled={def.columns.length === 0} className={`${btn} border-2 border-teal-800 text-teal-800 hover:bg-paper-2`}><FileText size={18} aria-hidden="true" />CSV</a>
-        <a href={exportHref("xlsx")} aria-disabled={def.columns.length === 0} className={`${btn} border-2 border-teal-800 text-teal-800 hover:bg-paper-2`}><FileSpreadsheet size={18} aria-hidden="true" />Excel</a>
+        <a href={cannotExport ? undefined : exportHref("csv")} aria-disabled={cannotExport} className={`${btn} aria-disabled:pointer-events-none aria-disabled:opacity-60 border-2 border-teal-800 text-teal-800 hover:bg-paper-2`}><FileText size={18} aria-hidden="true" />CSV</a>
+        <a href={cannotExport ? undefined : exportHref("xlsx")} aria-disabled={cannotExport} className={`${btn} aria-disabled:pointer-events-none aria-disabled:opacity-60 border-2 border-teal-800 text-teal-800 hover:bg-paper-2`}><FileSpreadsheet size={18} aria-hidden="true" />Excel</a>
         <button type="button" onClick={() => window.print()} disabled={!run?.ok} className={`${btn} border-2 border-teal-800 text-teal-800 hover:bg-paper-2`}><Printer size={18} aria-hidden="true" />Print</button>
         <span className="mx-1 hidden h-8 w-px bg-line sm:block" aria-hidden="true" />
         <div><label htmlFor="report-name" className="block text-sm font-semibold">Report name</label>

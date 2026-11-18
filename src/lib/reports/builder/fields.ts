@@ -71,7 +71,6 @@ export const SOURCES = {
     label: "Donors", hint: "One row per donor, with their giving totals.",
     fields: [
       ...DONOR_FIELDS,
-      { key: "gift_date", label: "Gift date", type: "date", group: "Gift" },
       { key: "lifetime_giving", label: "Lifetime giving", type: "money", group: "Giving" },
       { key: "giving_12_months", label: "Giving, last 12 months", type: "money", group: "Giving" },
       { key: "gift_count", label: "Number of gifts", type: "number", group: "Giving" },
@@ -82,6 +81,9 @@ export const SOURCES = {
       { key: "largest_gift", label: "Largest gift", type: "money", group: "Giving" },
       { key: "recurring_active", label: "Has an active recurring gift", type: "bool", group: "Giving" },
       { key: "recurring_amount", label: "Active recurring amount", type: "money", group: "Giving" },
+      // Totals over the report's date range (ReportDefinition.period), e.g. "gave $5,000 or more in 2025".
+      { key: "period_giving", label: "Giving in date range", type: "money", group: "Giving in date range" },
+      { key: "period_gift_count", label: "Gifts in date range", type: "number", group: "Giving in date range" },
     ] as FieldDef[],
     defaultColumns: ["donor_name", "email", "lifetime_giving", "last_gift_date", "last_gift_amount"],
   },
@@ -114,6 +116,10 @@ export const OPERATORS: Record<FieldType, { value: string; label: string; needs:
 
 export const fieldOf = (source: SourceKey, key: string): FieldDef | undefined => (SOURCES[source].fields as FieldDef[]).find((f) => f.key === key);
 
+/** Fields totalled over the report's date range; they need ReportDefinition.period set. */
+export const PERIOD_FIELDS = ["period_giving", "period_gift_count"];
+
+const ymdOrBlank = z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, "Enter dates as YYYY-MM-DD");
 const filterSchema = z.object({
   field: z.string().max(40), op: z.string().max(20),
   value: z.string().max(200).optional(), value2: z.string().max(200).optional(), values: z.array(z.string().max(60)).max(20).optional(),
@@ -125,6 +131,8 @@ export const definitionSchema = z.object({
   sort: z.array(z.object({ field: z.string().max(40), dir: z.enum(["asc", "desc"]) })).max(3),
   groupBy: z.string().max(40).nullable(),
   summaryOnly: z.boolean(),
+  /** Donors only: the dates "Giving in date range" and "Gifts in date range" cover, inclusive. Optional so older saved reports still load. */
+  period: z.object({ from: ymdOrBlank, to: ymdOrBlank }).nullable().optional(),
 });
 export type ReportDefinition = z.infer<typeof definitionSchema>;
 export type ReportFilter = z.infer<typeof filterSchema>;
@@ -134,7 +142,7 @@ export function defaultDefinition(source: SourceKey): ReportDefinition {
     source, columns: [...SOURCES[source].defaultColumns],
     // Gift reports start with settled gifts only, like every other report; remove the filter to see the rest.
     filters: source === "gifts" ? [{ field: "status", op: "in", values: ["succeeded", "partially_refunded", "refunded"] }, { field: "gift_date", op: "this_year" }] : [],
-    sort: [{ field: source === "gifts" ? "gift_date" : "lifetime_giving", dir: "desc" }], groupBy: null, summaryOnly: false,
+    sort: [{ field: source === "gifts" ? "gift_date" : "lifetime_giving", dir: "desc" }], groupBy: null, summaryOnly: false, period: null,
   };
 }
 
@@ -142,6 +150,20 @@ export function defaultDefinition(source: SourceKey): ReportDefinition {
  * Drops anything the definition names that isn't a field of its report type, or (without donors.view) is a personal
  * detail. Returns the cleaned definition and the labels of what was removed, so the screen can say so.
  */
+/** The fields a definition uses anywhere: columns, filters, sorting and grouping. */
+const usedFields = (def: ReportDefinition) => [...def.columns, ...def.filters.map((f) => f.field), ...def.sort.map((s) => s.field), ...(def.groupBy ? [def.groupBy] : [])];
+
+/**
+ * The date range in order (earliest first), or null when there isn't a complete one. An error when the report uses a
+ * date-range field without both dates, since its totals would mean nothing.
+ */
+export function resolvePeriod(def: ReportDefinition): { period: { from: string; to: string } | null; error?: string } {
+  const p = def.source === "donors" ? def.period : null;
+  if (p?.from && p.to) return { period: p.from <= p.to ? { from: p.from, to: p.to } : { from: p.to, to: p.from } };
+  if (usedFields(def).some((k) => PERIOD_FIELDS.includes(k))) return { period: null, error: "Enter both dates of the date range to use Giving in date range or Gifts in date range." };
+  return { period: null };
+}
+
 export function restrictDefinition(def: ReportDefinition, canViewDonors: boolean): { def: ReportDefinition; removed: string[] } {
   const removed = new Set<string>();
   const ok = (key: string) => {
@@ -155,6 +177,7 @@ export function restrictDefinition(def: ReportDefinition, canViewDonors: boolean
     def: {
       ...def, columns: def.columns.filter(ok), filters, sort: def.sort.filter((s) => ok(s.field)),
       groupBy: def.groupBy && ok(def.groupBy) ? def.groupBy : null,
+      period: def.source === "donors" ? def.period ?? null : null,
     },
     removed: [...removed],
   };
